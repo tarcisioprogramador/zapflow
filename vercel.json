@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "name": "zapflow-frontend",
+  "buildCommand": "cd frontend && npm run build",
+  "outputDirectory": "frontend/dist",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://YOUR-BACKEND-URL.railway.app/api/$1"
+    },
+    {
+      "source": "/socket.io/(.*)",
+      "destination": "https://YOUR-BACKEND-URL.railway.app/socket.io/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/socket.io/(.*)",
+      "headers": [
+        { "key": "Upgrade", "value": "websocket" },
+        { "key": "Connection", "value": "Upgrade" }
+      ]
+    }
+  ]
+}

@@ -41,24 +41,22 @@ router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
 // POST /api/flows - Create flow
 router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { name, description, triggerType, triggerValue } = req.body;
-
-    const flow = await prisma.flow.create({
+    const { name, description, triggerType, triggerValue } = req.body;      const flow = await prisma.flow.create({
       data: {
         name: name || 'Novo Fluxo',
         description,
         triggerType: triggerType || 'keyword',
         triggerValue,
         userId: req.user!.userId,
-        nodes: [
+        nodes: JSON.stringify([
           {
             id: 'start-1',
             type: 'startNode',
             position: { x: 250, y: 50 },
             data: { label: 'Início', triggerType: triggerType || 'keyword' },
           },
-        ],
-        edges: [],
+        ]),
+        edges: JSON.stringify([]),
       },
     });
 
@@ -78,8 +76,8 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
       data: {
         name,
         description,
-        nodes: nodes !== undefined ? nodes : undefined,
-        edges: edges !== undefined ? edges : undefined,
+        nodes: nodes !== undefined ? (typeof nodes === 'string' ? nodes : JSON.stringify(nodes)) : undefined,
+        edges: edges !== undefined ? (typeof edges === 'string' ? edges : JSON.stringify(edges)) : undefined,
         isActive,
         triggerType,
         triggerValue,
@@ -137,8 +135,8 @@ router.post('/:id/duplicate', async (req: AuthRequest, res: Response): Promise<v
         description: original.description,
         triggerType: original.triggerType,
         triggerValue: original.triggerValue,
-        nodes: original.nodes,
-        edges: original.edges,
+        nodes: typeof original.nodes === 'string' ? original.nodes : JSON.stringify(original.nodes),
+        edges: typeof original.edges === 'string' ? original.edges : JSON.stringify(original.edges),
         userId: req.user!.userId,
       },
     });

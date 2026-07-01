@@ -116,8 +116,13 @@ webhookRouter.post('/evolution', async (req: any, res: Response): Promise<void> 
         });
       }
 
-      // Check for matching flow triggers
-      await processFlowTriggers(content, from, conversation.id, whatsappNumber.organizationId);
+      // Check for matching flow triggers, fallback to AI auto-reply
+      const flowTriggered = await processFlowTriggers(content, from, conversation.id, whatsappNumber.organizationId);
+
+      if (!flowTriggered && content.trim()) {
+        // No flow matched - AI auto-reply (Megan)
+        await handleAIReply(content, from, conversation.id, whatsappNumber, io);
+      }
 
       console.log(`[Webhook] Message saved: ${from} -> ${whatsappNumber.number}: ${content}`);
     }
@@ -151,12 +156,13 @@ webhookRouter.post('/evolution', async (req: any, res: Response): Promise<void> 
 });
 
 // Process flow triggers for incoming messages
+// Returns true if a flow was triggered, false otherwise
 async function processFlowTriggers(
   messageContent: string,
   from: string,
   conversationId: string,
   organizationId: string
-): Promise<void> {
+): Promise<boolean> {
   try {
     // Find active flows with matching keyword triggers
     const flows = await prisma.flow.findMany({
@@ -200,11 +206,147 @@ async function processFlowTriggers(
           data: { status: 'completed', endedAt: new Date() },
         });
 
-        break; // Trigger only the first matching flow
+        return true; // Flow was triggered
       }
     }
   } catch (error) {
     console.error('[Flow] Error processing triggers:', error);
+  }
+
+  return false; // No flow matched
+}
+
+// ─── AI Auto-Reply (Megan) ─────────────────────────────
+// Called when no flow matches - AI responds using knowledge base
+async function handleAIReply(
+  messageContent: string,
+  from: string,
+  conversationId: string,
+  whatsappNumber: any,
+  io: any
+): Promise<void> {
+  try {
+    const organizationId = whatsappNumber.organizationId;
+    if (!organizationId) return;
+
+    // Check if OpenAI API key is configured
+    if (!process.env.OPENAI_API_KEY) {
+      console.log('[AI] OpenAI API key not configured, skipping auto-reply');
+      return;
+    }
+
+    // Import AI service
+    const { generateAIResponse } = await import('../services/ai');
+
+    // Load knowledge base items for this organization
+    const kbItems = await prisma.knowledgeBaseItem.findMany({
+      where: { organizationId },
+      orderBy: { category: 'asc' },
+    });
+
+    // Build knowledge base context string
+    let knowledgeBase = '';
+    if (kbItems.length > 0) {
+      const byCategory: Record<string, string[]> = {};
+      kbItems.forEach((item) => {
+        if (!byCategory[item.category]) byCategory[item.category] = [];
+        byCategory[item.category].push(`${item.title}: ${item.content}`);
+      });
+
+      knowledgeBase = Object.entries(byCategory)
+        .map(([cat, items]) => `## ${cat}\n${items.join('\n')}`)
+        .join('\n\n');
+    }
+
+    // Get recent conversation history for context
+    const recentMessages = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+
+    const conversationHistory = recentMessages
+      .reverse()
+      .map((m) => ({
+        role: m.isFromBot ? ('assistant' as const) : ('user' as const),
+        content: m.content,
+      }));
+
+    // Generate AI response
+    console.log(`[AI] Generating reply for ${from} (KB items: ${kbItems.length})`);
+
+    const aiResponse = await generateAIResponse(messageContent, {
+      systemPrompt: `Você é a Megan, assistente virtual inteligente da empresa.
+Responda de forma humanizada, profissional e amigável como se estivesse no WhatsApp.
+Seja conciso mas completo. Use emojis com moderação.
+Se não souber a resposta, seja honesto e ofereça encaminhamento para um atendente humano.
+Nunca invente informações. Use apenas a base de conhecimento fornecida.`,
+      knowledgeBase: knowledgeBase || undefined,
+      conversationHistory,
+    });
+
+    // Send the AI response via WhatsApp
+    if (whatsappNumber.instanceId) {
+      try {
+        await sendText({
+          instanceName: whatsappNumber.instanceId,
+          number: from,
+          text: aiResponse,
+        });
+        console.log(`[AI] Reply sent to ${from}: ${aiResponse.substring(0, 100)}...`);
+      } catch (err) {
+        console.error('[AI] Failed to send reply via Evolution API:', (err as Error).message);
+      }
+    }
+
+    // Save the AI response to database
+    const savedReply = await prisma.message.create({
+      data: {
+        content: aiResponse,
+        type: 'TEXT',
+        from: whatsappNumber.number,
+        to: from,
+        conversationId,
+        isFromBot: true,
+      },
+    });
+
+    // Emit via WebSocket so dashboard updates in real-time
+    if (io) {
+      io.to(`conversation:${conversationId}`).emit('new-message', savedReply);
+      io.to(`user:${organizationId}`).emit('conversation-updated', {
+        conversationId,
+        lastMessage: aiResponse,
+      });
+    }
+
+    console.log(`[AI] Auto-reply completed for conversation ${conversationId}`);
+  } catch (error) {
+    console.error('[AI] Error in handleAIReply:', error);
+
+    // Send fallback message if AI fails
+    try {
+      const fallbackMsg = 'Desculpe, estou com dificuldades técnicas no momento. Um atendente humano entrará em contato em breve. 🙏';
+      if (whatsappNumber.instanceId) {
+        await sendText({
+          instanceName: whatsappNumber.instanceId,
+          number: from,
+          text: fallbackMsg,
+        });
+      }
+      await prisma.message.create({
+        data: {
+          content: fallbackMsg,
+          type: 'TEXT',
+          from: whatsappNumber.number,
+          to: from,
+          conversationId,
+          isFromBot: true,
+        },
+      });
+    } catch (fallbackError) {
+      console.error('[AI] Fallback message also failed:', fallbackError);
+    }
   }
 }
 

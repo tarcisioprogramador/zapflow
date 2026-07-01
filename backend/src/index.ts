@@ -14,6 +14,7 @@ import dashboardRoutes from './routes/dashboard';
 import webhookRoutes from './routes/webhooks';
 import remarketingRoutes from './routes/remarketing';
 import knowledgeBaseRoutes from './routes/knowledge-base';
+import trackingRoutes from './routes/tracking';
 
 const app = express();
 const httpServer = createServer(app);
@@ -49,6 +50,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/remarketing', remarketingRoutes);
 app.use('/api/knowledge-base', knowledgeBaseRoutes);
+app.use('/api/tracking', trackingRoutes);
 
 // Start server
 httpServer.listen(PORT, () => {

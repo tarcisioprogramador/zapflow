@@ -30,8 +30,13 @@ export interface Contact {
   phone: string;
   email?: string;
   company?: string;
-  tags: string[];
+  tags: string;
   notes?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  adId?: string;
+  adTitle?: string;
   createdAt: string;
 }
 

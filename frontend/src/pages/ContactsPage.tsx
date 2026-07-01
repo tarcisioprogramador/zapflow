@@ -23,14 +23,14 @@ export default function ContactsPage() {
       setContacts(data);
     } catch {
       setContacts([
-        { id: '1', name: 'João Silva', phone: '+5511988888888', email: 'joao@email.com', company: 'Tech Corp', tags: ['lead', 'vip'], createdAt: '2024-03-10' },
-        { id: '2', name: 'Maria Santos', phone: '+5511977777777', email: 'maria@email.com', tags: ['lead'], createdAt: '2024-03-11' },
-        { id: '3', name: 'Pedro Costa', phone: '+5511966666666', email: 'pedro@email.com', company: 'StartupX', tags: ['cliente'], createdAt: '2024-03-12' },
-        { id: '4', name: 'Ana Oliveira', phone: '+5511955555555', email: 'ana@email.com', tags: ['lead', 'interessado'], createdAt: '2024-03-13' },
-        { id: '5', name: 'Lucas Ferreira', phone: '+5511944444444', email: 'lucas@email.com', company: 'Agência Digital', tags: ['parceiro'], createdAt: '2024-03-14' },
-        { id: '6', name: 'Fernanda Lima', phone: '+5511933333333', email: 'fernanda@email.com', tags: ['lead'], createdAt: '2024-03-14' },
-        { id: '7', name: 'Ricardo Alves', phone: '+5511922222222', email: 'ricardo@email.com', company: 'Construtora RA', tags: ['cliente', 'vip'], createdAt: '2024-03-15' },
-        { id: '8', name: 'Camila Souza', phone: '+5511911111111', email: 'camila@email.com', tags: ['lead'], createdAt: '2024-03-15' },
+        { id: '1', name: 'João Silva', phone: '+5511988888888', email: 'joao@email.com', company: 'Tech Corp', tags: '["lead","vip"]', createdAt: '2024-03-10' },
+        { id: '2', name: 'Maria Santos', phone: '+5511977777777', email: 'maria@email.com', tags: '["lead"]', createdAt: '2024-03-11' },
+        { id: '3', name: 'Pedro Costa', phone: '+5511966666666', email: 'pedro@email.com', company: 'StartupX', tags: '["cliente"]', createdAt: '2024-03-12' },
+        { id: '4', name: 'Ana Oliveira', phone: '+5511955555555', email: 'ana@email.com', tags: '["lead","interessado"]', createdAt: '2024-03-13' },
+        { id: '5', name: 'Lucas Ferreira', phone: '+5511944444444', email: 'lucas@email.com', company: 'Agência Digital', tags: '["parceiro"]', createdAt: '2024-03-14' },
+        { id: '6', name: 'Fernanda Lima', phone: '+5511933333333', email: 'fernanda@email.com', tags: '["lead"]', createdAt: '2024-03-14' },
+        { id: '7', name: 'Ricardo Alves', phone: '+5511922222222', email: 'ricardo@email.com', company: 'Construtora RA', tags: '["cliente","vip"]', createdAt: '2024-03-15' },
+        { id: '8', name: 'Camila Souza', phone: '+5511911111111', email: 'camila@email.com', tags: '["lead"]', createdAt: '2024-03-15' },
       ]);
     } finally { setLoading(false); }
   };
@@ -40,7 +40,7 @@ export default function ContactsPage() {
     try {
       if (editing) {
         await crmApi.updateContact(editing.id, { ...form, tags: JSON.stringify(form.tags) });
-        setContacts(contacts.map((c) => (c.id === editing.id ? { ...c, ...form } : c)));
+        setContacts(contacts.map((c) => (c.id === editing.id ? { ...c, ...form, tags: JSON.stringify(form.tags) } : c)));
         toast.success('Contato atualizado!');
       } else {
         const { data } = await crmApi.createContact({ ...form, tags: JSON.stringify(form.tags) });

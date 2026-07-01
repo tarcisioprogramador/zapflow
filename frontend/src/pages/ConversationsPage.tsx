@@ -66,28 +66,28 @@ export default function ConversationsPage() {
       setConversations([
         {
           id: '1', status: 'open', createdAt: '2024-03-15T10:00:00Z', updatedAt: '2024-03-15T10:05:00Z',
-          contact: { id: 'c1', name: 'João Silva', phone: '+5511988888888', tags: ['lead', 'vip'], createdAt: '' },
+          contact: { id: 'c1', name: 'João Silva', phone: '+5511988888888', tags: '["lead","vip"]', createdAt: '' },
           whatsappNumber: { number: '+5511999999999', name: 'Principal' },
           tags: [{ tag: { id: 't1', name: 'Lead', color: '#6366f1' } }],
           messages: [{ id: 'm1', content: 'Olá! Gostaria de saber os planos', type: 'TEXT', from: '+5511988888888', to: '+5511999999999', status: 'READ', isFromBot: false, createdAt: '2024-03-15T10:05:00Z' }],
         },
         {
           id: '2', status: 'open', createdAt: '2024-03-15T09:30:00Z', updatedAt: '2024-03-15T09:45:00Z',
-          contact: { id: 'c2', name: 'Maria Santos', phone: '+5511977777777', tags: ['lead'], createdAt: '' },
+          contact: { id: 'c2', name: 'Maria Santos', phone: '+5511977777777', tags: '["lead"]', createdAt: '' },
           whatsappNumber: { number: '+5511999999999', name: 'Principal' },
           tags: [{ tag: { id: 't2', name: 'Urgente', color: '#ef4444' } }],
           messages: [{ id: 'm2', content: 'Preciso de suporte!', type: 'TEXT', from: '+5511977777777', to: '+5511999999999', status: 'READ', isFromBot: false, createdAt: '2024-03-15T09:45:00Z' }],
         },
         {
           id: '3', status: 'pending', createdAt: '2024-03-14T15:00:00Z', updatedAt: '2024-03-14T15:30:00Z',
-          contact: { id: 'c3', name: 'Pedro Costa', phone: '+5511966666666', tags: ['cliente'], createdAt: '' },
+          contact: { id: 'c3', name: 'Pedro Costa', phone: '+5511966666666', tags: '["cliente"]', createdAt: '' },
           whatsappNumber: { number: '+5511999999999', name: 'Principal' },
           tags: [],
           messages: [{ id: 'm3', content: 'Vou analisar a proposta', type: 'TEXT', from: '+5511999999999', to: '+5511966666666', status: 'DELIVERED', isFromBot: true, createdAt: '2024-03-14T15:30:00Z' }],
         },
         {
           id: '4', status: 'closed', createdAt: '2024-03-13T11:00:00Z', updatedAt: '2024-03-13T11:20:00Z',
-          contact: { id: 'c4', name: 'Ana Oliveira', phone: '+5511955555555', tags: ['lead', 'interessado'], createdAt: '' },
+          contact: { id: 'c4', name: 'Ana Oliveira', phone: '+5511955555555', tags: '["lead","interessado"]', createdAt: '' },
           whatsappNumber: { number: '+5511888888888', name: 'Suporte' },
           tags: [{ tag: { id: 't3', name: 'Fechado', color: '#10b981' } }],
           messages: [{ id: 'm4', content: 'Obrigada! Fechado!', type: 'TEXT', from: '+5511955555555', to: '+5511888888888', status: 'READ', isFromBot: false, createdAt: '2024-03-13T11:20:00Z' }],

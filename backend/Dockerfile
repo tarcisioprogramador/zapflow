@@ -25,6 +25,9 @@ npx prisma db push --accept-data-loss 2>&1 || echo "⚠️  Migration failed, co
 echo "🚀 Starting server..."\n\
 npx tsx src/index.ts' > /app/start.sh && chmod +x /app/start.sh
 
+# The public/ folder with frontend build must be in the build context
+# If not present, the server will still start (API routes work without it)
+
 # Expose port
 EXPOSE 3001
 

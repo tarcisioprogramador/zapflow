@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import { createServer } from 'http';
 import { setupWebSocket } from './config/websocket';
 import authRoutes from './routes/auth';
@@ -24,12 +25,16 @@ const io = setupWebSocket(httpServer);
 const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true }));
+app.use(cors({ origin: process.env.FRONTEND_URL || '*', credentials: true }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Make io accessible to routes
 app.set('io', io);
+
+// Serve frontend static files (built from frontend/)
+const publicPath = path.join(__dirname, '..', 'public');
+app.use(express.static(publicPath));
 
 // Check for expired trials every 15 minutes
 setInterval(async () => {
@@ -68,11 +73,16 @@ app.use('/api/remarketing', remarketingRoutes);
 app.use('/api/knowledge-base', knowledgeBaseRoutes);
 app.use('/api/tracking', trackingRoutes);
 
+// SPA fallback — all non-API routes serve index.html
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(publicPath, 'index.html'));
+});
+
 // Start server
 httpServer.listen(PORT, () => {
-  console.log(`\n🚀 ZapFlow Backend running on http://localhost:${PORT}`);
+  console.log(`\n🚀 Frontzapp Backend running on http://localhost:${PORT}`);
   console.log(`📡 WebSocket ready`);
-  console.log(`🌐 CORS: ${process.env.FRONTEND_URL || 'http://localhost:5173'}\n`);
+  console.log(`🌐 Serving frontend from ${publicPath}\n`);
 });
 
 export default app;

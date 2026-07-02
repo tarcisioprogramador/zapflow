@@ -5,9 +5,11 @@ WORKDIR /app
 # Install OpenSSL (required by Prisma for PostgreSQL)
 RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
-# Copy package files
-COPY package*.json ./
-COPY prisma ./prisma/
+# Copy package files from backend/ directory
+# Build context must be set to backend/ in Railway service settings
+# Alternatively, copy from root with backend/ prefix:
+COPY backend/package*.json ./
+COPY backend/prisma ./prisma/
 
 # Install dependencies
 RUN npm install
@@ -15,8 +17,8 @@ RUN npm install
 # Generate Prisma client
 RUN npx prisma generate
 
-# Copy source code
-COPY . .
+# Copy source code (from backend/)
+COPY backend/ ./
 
 # Create startup script
 RUN echo '#!/bin/bash\n\

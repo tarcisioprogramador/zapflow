@@ -49,20 +49,28 @@ router.get('/metrics', async (req: AuthRequest, res: Response): Promise<void> =>
       where: { userId, isActive: true },
     });
 
-    // Messages per day (last 7 days) - SQLite compatible
+    // Messages per day (last 7 days) - PostgreSQL compatible
     let messagesPerDay: { date: string; count: number }[] = [];
     if (numberIds.length > 0) {
-      const raw = await prisma.$queryRawUnsafe<{ date: string; count: bigint }[]>(
-        `SELECT DATE(m.createdAt) as date, COUNT(*) as count
-         FROM Message m
-         JOIN Conversation c ON m.conversationId = c.id
-         WHERE c.whatsappNumberId IN (${numberIds.map(() => '?').join(',')})
-         AND m.createdAt >= ?
-         GROUP BY DATE(m.createdAt)
-         ORDER BY date ASC`,
-        ...numberIds, sevenDaysAgo
-      );
-      messagesPerDay = raw.map(r => ({ date: r.date, count: Number(r.count) }));
+      const messages = await prisma.message.findMany({
+        where: {
+          conversation: { whatsappNumberId: { in: numberIds } },
+          createdAt: { gte: sevenDaysAgo },
+        },
+        select: { createdAt: true },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      // Group by date in JavaScript
+      const grouped: Record<string, number> = {};
+      for (const msg of messages) {
+        const date = msg.createdAt.toISOString().split('T')[0];
+        grouped[date] = (grouped[date] || 0) + 1;
+      }
+      messagesPerDay = Object.entries(grouped).map(([date, count]) => ({
+        date,
+        count,
+      }));
     }
 
     // Total campaigns

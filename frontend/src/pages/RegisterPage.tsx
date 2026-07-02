@@ -51,8 +51,10 @@ export default function RegisterPage() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-dark-300 mb-2">Nome completo</label>
+              <label htmlFor="reg-name" className="block text-sm font-medium text-dark-300 mb-2">Nome completo</label>
               <input
+                id="reg-name"
+                name="name"
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -63,8 +65,10 @@ export default function RegisterPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-dark-300 mb-2">Email</label>
+              <label htmlFor="reg-email" className="block text-sm font-medium text-dark-300 mb-2">Email</label>
               <input
+                id="reg-email"
+                name="email"
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -75,8 +79,10 @@ export default function RegisterPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-dark-300 mb-2">Nome da empresa</label>
+              <label htmlFor="reg-company" className="block text-sm font-medium text-dark-300 mb-2">Nome da empresa</label>
               <input
+                id="reg-company"
+                name="organization"
                 type="text"
                 value={form.organizationName}
                 onChange={(e) => setForm({ ...form, organizationName: e.target.value })}
@@ -86,9 +92,11 @@ export default function RegisterPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-dark-300 mb-2">Senha</label>
+              <label htmlFor="reg-password" className="block text-sm font-medium text-dark-300 mb-2">Senha</label>
               <div className="relative">
                 <input
+                  id="reg-password"
+                  name="password"
                   type={showPassword ? 'text' : 'password'}
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}

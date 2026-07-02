@@ -7,12 +7,12 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "https://zapflow-backend.up.railway.app/api/:splat"
+  to = "https://seu-app.railway.app/api/:splat"
   status = 200
 
 [[redirects]]
   from = "/socket.io/*"
-  to = "https://zapflow-backend.up.railway.app/socket.io/:splat"
+  to = "https://seu-app.railway.app/socket.io/:splat"
   status = 200
 
 [[redirects]]

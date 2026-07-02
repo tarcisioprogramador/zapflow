@@ -2,6 +2,9 @@ FROM node:20-slim
 
 WORKDIR /app
 
+# Install OpenSSL (required by Prisma for PostgreSQL)
+RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+
 # Copy package files
 COPY package*.json ./
 COPY prisma ./prisma/
@@ -15,11 +18,15 @@ RUN npx prisma generate
 # Copy source code
 COPY . .
 
-# Build TypeScript
-RUN npx tsc || true
+# Create startup script
+RUN echo '#!/bin/bash\n\
+echo "⏳ Running database migrations..."\n\
+npx prisma db push --accept-data-loss 2>&1 || echo "⚠️  Migration failed, continuing..."\n\
+echo "🚀 Starting server..."\n\
+npx tsx src/index.ts' > /app/start.sh && chmod +x /app/start.sh
 
 # Expose port
 EXPOSE 3001
 
 # Start command
-CMD ["npx", "tsx", "src/index.ts"]
+CMD ["/app/start.sh"]

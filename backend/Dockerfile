@@ -22,6 +22,8 @@ COPY backend/ ./
 RUN echo '#!/bin/bash\n\
 echo "⏳ Running database migrations..."\n\
 npx prisma db push --accept-data-loss 2>&1 || echo "⚠️  Migration failed, continuing..."\n\
+echo "🌱 Seeding database if empty..."\n\
+npx tsx prisma/seed.ts 2>&1 || echo "⚠️  Seed might have already run, continuing..."\n\
 echo "🚀 Starting server..."\n\
 npx tsx src/index.ts' > /app/start.sh && chmod +x /app/start.sh
 

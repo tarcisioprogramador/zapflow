@@ -5,12 +5,13 @@
  * Handles: instance creation, QR code, message sending, webhooks
  */
 
-const BASE_URL = process.env.WHATSAPP_API_URL || '';
-const API_KEY = process.env.WHATSAPP_API_KEY || '';
+export const BASE_URL = process.env.WHATSAPP_API_URL || '';
+export const API_KEY = process.env.WHATSAPP_API_KEY || '';
 
 interface EvolutionHeaders {
   'Content-Type': string;
   apikey: string;
+  [key: string]: string;
 }
 
 function headers(): EvolutionHeaders {

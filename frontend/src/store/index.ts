@@ -35,13 +35,23 @@ interface AppStore {
   selectedNumber: string | null;
   setSelectedNumber: (id: string | null) => void;
   theme: 'dark' | 'light';
+  toggleTheme: () => void;
 }
 
-export const useAppStore = create<AppStore>()((set) => ({
-  sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
-  toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  selectedNumber: null,
-  setSelectedNumber: (id) => set({ selectedNumber: id }),
-  theme: 'dark',
-}));
+export const useAppStore = create<AppStore>()(
+  persist(
+    (set) => ({
+      sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
+      toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+      setSidebarOpen: (open) => set({ sidebarOpen: open }),
+      selectedNumber: null,
+      setSelectedNumber: (id) => set({ selectedNumber: id }),
+      theme: 'dark',
+      toggleTheme: () =>
+        set((s) => ({
+          theme: s.theme === 'dark' ? 'light' : 'dark',
+        })),
+    }),
+    { name: 'zapflow-app' }
+  )
+);

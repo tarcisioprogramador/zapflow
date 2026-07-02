@@ -137,7 +137,7 @@ export default function KnowledgeBasePage() {
           { label: 'Caracteres', value: stats.characters.toLocaleString(), color: 'text-zap-400' },
         ].map((s) => (
           <div key={s.label} className="stat-card">
-            <p className={`text-2xl font-display font-bold ${s.color}`}>{s.value}</p>
+            <p className={`text-2xl font-heading font-bold ${s.color}`}>{s.value}</p>
             <p className="text-xs text-dark-400">{s.label}</p>
           </div>
         ))}
@@ -147,6 +147,8 @@ export default function KnowledgeBasePage() {
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-500" />
         <input
+          id="kb-search"
+          name="kb-search"
           type="text" value={search} onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar na base de conhecimento..."
           className="input-field pl-10 w-full"
@@ -222,19 +224,19 @@ export default function KnowledgeBasePage() {
       {showAdd && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
           <div className="glass-card w-full max-w-md p-6 mx-4 animate-slide-up">
-            <h3 className="text-xl font-display font-bold text-white mb-4">Novo Item</h3>
+            <h3 className="text-xl font-heading font-bold text-white mb-4">Novo Item</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-dark-300 mb-2">Título</label>
-                <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex: Política de Troca" className="input-field w-full" />
+                <label htmlFor="kb-title" className="block text-sm font-medium text-dark-300 mb-2">Título</label>
+                <input id="kb-title" name="kb-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex: Política de Troca" className="input-field w-full" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-dark-300 mb-2">Categoria</label>
-                <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Ex: Comercial, Suporte, Geral" className="input-field w-full" />
+                <label htmlFor="kb-category" className="block text-sm font-medium text-dark-300 mb-2">Categoria</label>
+                <input id="kb-category" name="kb-category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Ex: Comercial, Suporte, Geral" className="input-field w-full" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-dark-300 mb-2">Conteúdo</label>
-                <textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder="Informações que a IA deve usar..." className="input-field w-full h-32 resize-none" />
+                <label htmlFor="kb-content" className="block text-sm font-medium text-dark-300 mb-2">Conteúdo</label>
+                <textarea id="kb-content" name="kb-content" value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder="Informações que a IA deve usar..." className="input-field w-full h-32 resize-none" />
               </div>
               <div className="flex gap-3 mt-6">
                 <button onClick={() => setShowAdd(false)} className="btn-secondary flex-1">Cancelar</button>

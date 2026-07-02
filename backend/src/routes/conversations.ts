@@ -31,7 +31,7 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
       include: {
         messages: { orderBy: { createdAt: 'desc' }, take: 1 },
         contact: true,
-        whatsappNumber: { select: { number: true, name: true } },
+        whatsappNumber: { select: { id: true, number: true, name: true } },
         tags: { include: { tag: true } },
         user: { select: { name: true } },
       },
@@ -61,7 +61,7 @@ router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
       include: {
         messages: { orderBy: { createdAt: 'asc' } },
         contact: true,
-        whatsappNumber: { select: { number: true, name: true } },
+        whatsappNumber: { select: { id: true, number: true, name: true } },
         tags: { include: { tag: true } },
         user: { select: { name: true } },
       },

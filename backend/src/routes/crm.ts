@@ -266,7 +266,7 @@ router.post('/contacts', async (req: AuthRequest, res: Response): Promise<void> 
         phone,
         email,
         company,
-        tags: tags || [],
+        tags: JSON.stringify(tags || []),
         notes,
         userId: req.user!.userId,
       },

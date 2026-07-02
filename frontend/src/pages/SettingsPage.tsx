@@ -111,7 +111,7 @@ export default function SettingsPage() {
           {/* Profile */}
           {activeTab === 'profile' && (
             <div className="glass-card p-6 max-w-2xl">
-              <h3 className="text-lg font-display font-bold text-white mb-6">Perfil</h3>
+              <h3 className="text-lg font-heading font-bold text-white mb-6">Perfil</h3>
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-zap-500 to-brand-600 flex items-center justify-center text-2xl font-bold text-white">
                   {user?.name?.charAt(0)}
@@ -123,12 +123,12 @@ export default function SettingsPage() {
               </div>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-dark-300 mb-2">Nome</label>
-                  <input value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} className="input-field w-full" />
+                  <label htmlFor="settings-name" className="block text-sm font-medium text-dark-300 mb-2">Nome</label>
+                  <input id="settings-name" name="settings-name" value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} className="input-field w-full" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-dark-300 mb-2">Email</label>
-                  <input value={profileForm.email} onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })} className="input-field w-full" />
+                  <label htmlFor="settings-email" className="block text-sm font-medium text-dark-300 mb-2">Email</label>
+                  <input id="settings-email" name="settings-email" value={profileForm.email} onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })} className="input-field w-full" />
                 </div>
                 <button className="btn-primary">Salvar Alterações</button>
               </div>
@@ -139,7 +139,7 @@ export default function SettingsPage() {
           {activeTab === 'team' && (
             <div className="glass-card p-6 max-w-3xl">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-display font-bold text-white">Equipe</h3>
+                <h3 className="text-lg font-heading font-bold text-white">Equipe</h3>
                 <button className="btn-primary text-sm flex items-center gap-2">
                   <Plus className="w-4 h-4" /> Convidar Membro
                 </button>
@@ -171,7 +171,7 @@ export default function SettingsPage() {
           {activeTab === 'webhooks' && (
             <div className="glass-card p-6 max-w-3xl">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-display font-bold text-white">Webhooks</h3>
+                <h3 className="text-lg font-heading font-bold text-white">Webhooks</h3>
                 <button onClick={() => setShowWebhookModal(true)} className="btn-primary text-sm flex items-center gap-2">
                   <Plus className="w-4 h-4" /> Novo Webhook
                 </button>
@@ -210,7 +210,7 @@ export default function SettingsPage() {
           {/* API */}
           {activeTab === 'api' && (
             <div className="glass-card p-6 max-w-3xl">
-              <h3 className="text-lg font-display font-bold text-white mb-6">API Pública</h3>
+              <h3 className="text-lg font-heading font-bold text-white mb-6">API Pública</h3>
               <div className="space-y-4">
                 <div className="p-4 rounded-xl bg-dark-800/50 border border-dark-700/30">
                   <h4 className="text-sm font-semibold text-white mb-2">Base URL</h4>
@@ -261,7 +261,7 @@ export default function SettingsPage() {
           {/* Plan */}
           {activeTab === 'plan' && (
             <div className="max-w-4xl">
-              <h3 className="text-lg font-display font-bold text-white mb-6">Seu Plano</h3>
+              <h3 className="text-lg font-heading font-bold text-white mb-6">Seu Plano</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
                   { name: 'Starter', price: 'R$ 97', period: '/mês', features: ['1 número WhatsApp', '5 atendentes', 'CRM Kanban', 'Automações básicas'], current: user?.plan === 'STARTER', popular: false },
@@ -279,9 +279,9 @@ export default function SettingsPage() {
                         <span className="badge badge-blue text-[10px]">Plano Atual</span>
                       </div>
                     )}
-                    <h4 className="text-lg font-display font-bold text-white">{plan.name}</h4>
+                    <h4 className="text-lg font-heading font-bold text-white">{plan.name}</h4>
                     <div className="flex items-baseline gap-1 mt-2 mb-4">
-                      <span className="text-3xl font-display font-bold text-white">{plan.price}</span>
+                      <span className="text-3xl font-heading font-bold text-white">{plan.price}</span>
                       <span className="text-sm text-dark-400">{plan.period}</span>
                     </div>
                     <ul className="space-y-2 mb-6">
@@ -306,15 +306,15 @@ export default function SettingsPage() {
       {showWebhookModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
           <div className="glass-card w-full max-w-md p-6 mx-4 animate-slide-up">
-            <h3 className="text-xl font-display font-bold text-white mb-4">Novo Webhook</h3>
+            <h3 className="text-xl font-heading font-bold text-white mb-4">Novo Webhook</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-dark-300 mb-2">Nome</label>
-                <input value={newWebhook.name} onChange={(e) => setNewWebhook({ ...newWebhook, name: e.target.value })} className="input-field w-full" />
+                <label htmlFor="webhook-name" className="block text-sm font-medium text-dark-300 mb-2">Nome</label>
+                <input id="webhook-name" name="webhook-name" value={newWebhook.name} onChange={(e) => setNewWebhook({ ...newWebhook, name: e.target.value })} className="input-field w-full" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-dark-300 mb-2">URL</label>
-                <input value={newWebhook.url} onChange={(e) => setNewWebhook({ ...newWebhook, url: e.target.value })} placeholder="https://..." className="input-field w-full font-mono" />
+                <label htmlFor="webhook-url" className="block text-sm font-medium text-dark-300 mb-2">URL</label>
+                <input id="webhook-url" name="webhook-url" value={newWebhook.url} onChange={(e) => setNewWebhook({ ...newWebhook, url: e.target.value })} placeholder="https://..." className="input-field w-full font-mono" />
               </div>
               <div className="flex gap-3 mt-6">
                 <button onClick={() => setShowWebhookModal(false)} className="btn-secondary flex-1">Cancelar</button>

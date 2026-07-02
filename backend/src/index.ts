@@ -15,6 +15,7 @@ import webhookRoutes from './routes/webhooks';
 import remarketingRoutes from './routes/remarketing';
 import knowledgeBaseRoutes from './routes/knowledge-base';
 import trackingRoutes from './routes/tracking';
+import { checkAndDisconnectExpiredTrials } from './services/trial';
 
 const app = express();
 const httpServer = createServer(app);
@@ -29,6 +30,21 @@ app.use(express.urlencoded({ extended: true }));
 
 // Make io accessible to routes
 app.set('io', io);
+
+// Check for expired trials every 15 minutes
+setInterval(async () => {
+  try {
+    const count = await checkAndDisconnectExpiredTrials();
+    if (count > 0) {
+      console.log(`[Cron] Auto-disconnected ${count} expired trial(s)`);
+    }
+  } catch (error) {
+    console.error('[Cron] Trial check failed:', error);
+  }
+}, 15 * 60 * 1000);
+
+// Run initial check on startup
+checkAndDisconnectExpiredTrials().catch(console.error);
 
 // Health check
 app.get('/api/health', (_req, res) => {

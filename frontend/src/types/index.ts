@@ -21,6 +21,9 @@ export interface WhatsAppNumber {
   name: string;
   status: 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING';
   qrcode?: string;
+  instanceId?: string;
+  trialRemaining?: string | null;
+  trialExpired?: boolean;
   createdAt: string;
 }
 
@@ -47,7 +50,7 @@ export interface Conversation {
   updatedAt: string;
   messages: Message[];
   contact?: Contact;
-  whatsappNumber: { number: string; name: string };
+  whatsappNumber: { id: string; number: string; name: string };
   tags: { tag: Tag }[];
   user?: { name: string };
 }

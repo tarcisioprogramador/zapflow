@@ -84,7 +84,7 @@ export default function FlowsPage() {
           { label: 'Inativos', value: flows.filter((f) => !f.isActive).length, color: 'text-dark-400' },
         ].map((s) => (
           <div key={s.label} className="glass-card p-4 text-center">
-            <p className={`text-2xl font-display font-bold ${s.color}`}>{s.value}</p>
+            <p className={`text-2xl font-heading font-bold ${s.color}`}>{s.value}</p>
             <p className="text-xs text-dark-400">{s.label}</p>
           </div>
         ))}
@@ -102,7 +102,7 @@ export default function FlowsPage() {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-3">
-                  <h3 className="text-base font-display font-bold text-white">{flow.name}</h3>
+                  <h3 className="text-base font-heading font-bold text-white">{flow.name}</h3>
                   <span className={`badge text-[10px] ${flow.isActive ? 'badge-green' : 'badge-red'}`}>
                     {flow.isActive ? 'Ativo' : 'Inativo'}
                   </span>
@@ -148,7 +148,7 @@ export default function FlowsPage() {
       {flows.length === 0 && !loading && (
         <div className="text-center py-20">
           <GitBranch className="w-16 h-16 text-dark-600 mx-auto mb-4" />
-          <h3 className="text-lg font-display font-bold text-dark-400">Nenhum fluxo criado</h3>
+          <h3 className="text-lg font-heading font-bold text-dark-400">Nenhum fluxo criado</h3>
           <p className="text-sm text-dark-500 mt-1 mb-6">Crie seu primeiro fluxo de automação</p>
           <button onClick={handleCreate} className="btn-primary">Criar Primeiro Fluxo</button>
         </div>

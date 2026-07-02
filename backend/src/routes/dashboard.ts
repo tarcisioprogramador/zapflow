@@ -50,18 +50,19 @@ router.get('/metrics', async (req: AuthRequest, res: Response): Promise<void> =>
     });
 
     // Messages per day (last 7 days) - SQLite compatible
-    let messagesPerDay: any[] = [];
+    let messagesPerDay: { date: string; count: number }[] = [];
     if (numberIds.length > 0) {
-      messagesPerDay = await prisma.$queryRawUnsafe(
-        `SELECT DATE(created_at) as date, COUNT(*) as count
-         FROM messages m
-         JOIN conversations c ON m.conversation_id = c.id
-         WHERE c.whatsapp_number_id IN (${numberIds.map(() => '?').join(',')})
-         AND m.created_at >= ?
-         GROUP BY DATE(created_at)
+      const raw = await prisma.$queryRawUnsafe<{ date: string; count: bigint }[]>(
+        `SELECT DATE(m.createdAt) as date, COUNT(*) as count
+         FROM Message m
+         JOIN Conversation c ON m.conversationId = c.id
+         WHERE c.whatsappNumberId IN (${numberIds.map(() => '?').join(',')})
+         AND m.createdAt >= ?
+         GROUP BY DATE(m.createdAt)
          ORDER BY date ASC`,
         ...numberIds, sevenDaysAgo
       );
+      messagesPerDay = raw.map(r => ({ date: r.date, count: Number(r.count) }));
     }
 
     // Total campaigns

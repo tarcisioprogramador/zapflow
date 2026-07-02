@@ -82,7 +82,7 @@ export default function CampaignsPage() {
             <div className="flex items-center gap-3">
               <s.icon className={`w-5 h-5 ${s.color}`} />
               <div>
-                <p className="text-xl font-display font-bold text-white">{s.value}</p>
+                <p className="text-xl font-heading font-bold text-white">{s.value}</p>
                 <p className="text-xs text-dark-400">{s.label}</p>
               </div>
             </div>
@@ -103,7 +103,7 @@ export default function CampaignsPage() {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
-                    <h3 className="text-base font-display font-bold text-white">{campaign.name}</h3>
+                    <h3 className="text-base font-heading font-bold text-white">{campaign.name}</h3>
                     <span className={status.color}>{status.label}</span>
                   </div>
                   <p className="text-sm text-dark-400 mt-1 truncate max-w-lg">{campaign.message}</p>
@@ -151,7 +151,7 @@ export default function CampaignsPage() {
       {campaigns.length === 0 && !loading && (
         <div className="text-center py-20">
           <Send className="w-16 h-16 text-dark-600 mx-auto mb-4" />
-          <h3 className="text-lg font-display font-bold text-dark-400">Nenhuma campanha</h3>
+          <h3 className="text-lg font-heading font-bold text-dark-400">Nenhuma campanha</h3>
           <p className="text-sm text-dark-500 mt-1 mb-6">Crie sua primeira campanha de disparo</p>
           <button onClick={() => setShowModal(true)} className="btn-primary">Criar Campanha</button>
         </div>
@@ -161,19 +161,23 @@ export default function CampaignsPage() {
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
           <div className="glass-card w-full max-w-lg p-6 mx-4 animate-slide-up">
-            <h3 className="text-xl font-display font-bold text-white mb-4">Nova Campanha</h3>
+            <h3 className="text-xl font-heading font-bold text-white mb-4">Nova Campanha</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-dark-300 mb-2">Nome</label>
+                <label htmlFor="campaign-name" className="block text-sm font-medium text-dark-300 mb-2">Nome</label>
                 <input
+                  id="campaign-name"
+                  name="campaign-name"
                   value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="Nome da campanha"
                   className="input-field w-full"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-dark-300 mb-2">Mensagem</label>
+                <label htmlFor="campaign-message" className="block text-sm font-medium text-dark-300 mb-2">Mensagem</label>
                 <textarea
+                  id="campaign-message"
+                  name="campaign-message"
                   value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })}
                   placeholder="Digite a mensagem que será enviada..."
                   className="input-field w-full h-32 resize-none"
@@ -182,8 +186,10 @@ export default function CampaignsPage() {
                 <p className="text-xs text-dark-500 mt-1">{form.message.length}/1000 caracteres</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-dark-300 mb-2">URL da Mídia (opcional)</label>
+                <label htmlFor="campaign-media" className="block text-sm font-medium text-dark-300 mb-2">URL da Mídia (opcional)</label>
                 <input
+                  id="campaign-media"
+                  name="campaign-media"
                   value={form.mediaUrl} onChange={(e) => setForm({ ...form, mediaUrl: e.target.value })}
                   placeholder="https://..."
                   className="input-field w-full"

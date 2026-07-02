@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import ErrorBoundary from './components/ErrorBoundary';
+import ThemeProvider from './components/ThemeProvider';
 import App from './App';
 import './index.css';
 
@@ -21,7 +22,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <App />
+        <ThemeProvider>
+          <App />
         <Toaster
           position="top-right"
           toastOptions={{
@@ -36,6 +38,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             error: { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
           }}
         />
+        </ThemeProvider>
       </BrowserRouter>
     </QueryClientProvider>
     </ErrorBoundary>

@@ -48,14 +48,15 @@ model Organization {
 // ─── WhatsApp Integration ───────────────────────────────
 
 model WhatsAppNumber {
-  id          String          @id @default(uuid())
-  number      String
-  name        String
-  status      String          @default("DISCONNECTED")
-  instanceId  String?
-  qrcode      String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id              String          @id @default(uuid())
+  number          String
+  name            String
+  status          String          @default("DISCONNECTED")
+  instanceId      String?
+  qrcode          String?
+  trialExpiresAt  DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   organization   Organization @relation(fields: [organizationId], references: [id])
   organizationId String

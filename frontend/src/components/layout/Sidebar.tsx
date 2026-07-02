@@ -54,7 +54,7 @@ export default function Sidebar() {
               <Zap className="w-5 h-5 text-white" />
             </div>
             {(sidebarOpen || typeof window !== 'undefined') && (
-              <h1 className="text-lg font-display font-bold text-white tracking-tight hidden lg:block">
+              <h1 className="text-lg font-heading font-bold text-white tracking-tight hidden lg:block">
                 Zap<span className="text-zap-400">Flow</span>
               </h1>
             )}

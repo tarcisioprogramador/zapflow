@@ -158,29 +158,29 @@ export default function ContactsPage() {
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
           <div className="glass-card w-full max-w-md p-6 mx-4 animate-slide-up">
-            <h3 className="text-xl font-display font-bold text-white mb-4">
+            <h3 className="text-xl font-heading font-bold text-white mb-4">
               {editing ? 'Editar Contato' : 'Novo Contato'}
             </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-dark-300 mb-2">Nome *</label>
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field w-full" />
+                <label htmlFor="contact-name" className="block text-sm font-medium text-dark-300 mb-2">Nome *</label>
+                <input id="contact-name" name="contact-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field w-full" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-dark-300 mb-2">Telefone *</label>
-                <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+5511999999999" className="input-field w-full font-mono" />
+                <label htmlFor="contact-phone" className="block text-sm font-medium text-dark-300 mb-2">Telefone *</label>
+                <input id="contact-phone" name="contact-phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+5511999999999" className="input-field w-full font-mono" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-dark-300 mb-2">Email</label>
-                <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input-field w-full" />
+                <label htmlFor="contact-email" className="block text-sm font-medium text-dark-300 mb-2">Email</label>
+                <input id="contact-email" name="contact-email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input-field w-full" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-dark-300 mb-2">Empresa</label>
-                <input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className="input-field w-full" />
+                <label htmlFor="contact-company" className="block text-sm font-medium text-dark-300 mb-2">Empresa</label>
+                <input id="contact-company" name="contact-company" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className="input-field w-full" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-dark-300 mb-2">Notas</label>
-                <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="input-field w-full h-20 resize-none" />
+                <label htmlFor="contact-notes" className="block text-sm font-medium text-dark-300 mb-2">Notas</label>
+                <textarea id="contact-notes" name="contact-notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="input-field w-full h-20 resize-none" />
               </div>
               <div className="flex gap-3 mt-6">
                 <button onClick={() => { setShowModal(false); setEditing(null); }} className="btn-secondary flex-1">Cancelar</button>

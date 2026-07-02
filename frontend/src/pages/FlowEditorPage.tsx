@@ -148,7 +148,7 @@ export default function FlowEditorPage() {
           <button onClick={() => navigate('/flows')} className="btn-ghost flex items-center gap-2 text-sm mb-3">
             <ArrowLeft className="w-4 h-4" /> Voltar
           </button>
-          <h3 className="text-sm font-display font-bold text-white truncate">{flow?.name || 'Carregando...'}</h3>
+          <h3 className="text-sm font-heading font-bold text-white truncate">{flow?.name || 'Carregando...'}</h3>
           <div className="flex items-center gap-2 mt-2">
             <button onClick={handleSave} disabled={saving} className="btn-primary flex-1 text-xs py-2">
               {saving ? 'Salvando...' : 'Salvar'}
@@ -184,8 +184,10 @@ export default function FlowEditorPage() {
               </div>
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs text-dark-400 mb-1 block">Nome</label>
+                  <label htmlFor="node-label" className="text-xs text-dark-400 mb-1 block">Nome</label>
                   <input
+                    id="node-label"
+                    name="node-label"
                     value={selectedNode.data.label || ''}
                     onChange={(e) => updateNodeData(selectedNode.id, { label: e.target.value })}
                     className="input-field w-full text-xs"
@@ -193,8 +195,10 @@ export default function FlowEditorPage() {
                 </div>
                 {selectedNode.type === 'message' && (
                   <div>
-                    <label className="text-xs text-dark-400 mb-1 block">Mensagem</label>
+                    <label htmlFor="node-message" className="text-xs text-dark-400 mb-1 block">Mensagem</label>
                     <textarea
+                      id="node-message"
+                      name="node-message"
                       value={selectedNode.data.message || ''}
                       onChange={(e) => updateNodeData(selectedNode.id, { message: e.target.value })}
                       className="input-field w-full text-xs h-20 resize-none"
@@ -203,8 +207,10 @@ export default function FlowEditorPage() {
                 )}
                 {selectedNode.type === 'delay' && (
                   <div>
-                    <label className="text-xs text-dark-400 mb-1 block">Segundos</label>
+                    <label htmlFor="node-delay" className="text-xs text-dark-400 mb-1 block">Segundos</label>
                     <input
+                      id="node-delay"
+                      name="node-delay"
                       type="number"
                       value={selectedNode.data.delay || 5}
                       onChange={(e) => updateNodeData(selectedNode.id, { delay: parseInt(e.target.value) })}
@@ -214,8 +220,10 @@ export default function FlowEditorPage() {
                 )}
                 {selectedNode.type === 'condition' && (
                   <div>
-                    <label className="text-xs text-dark-400 mb-1 block">Condição</label>
+                    <label htmlFor="node-condition" className="text-xs text-dark-400 mb-1 block">Condição</label>
                     <input
+                      id="node-condition"
+                      name="node-condition"
                       value={selectedNode.data.condition || ''}
                       onChange={(e) => updateNodeData(selectedNode.id, { condition: e.target.value })}
                       placeholder="ex: mensagem contém 'plano'"
@@ -225,8 +233,10 @@ export default function FlowEditorPage() {
                 )}
                 {selectedNode.type === 'ai' && (
                   <div>
-                    <label className="text-xs text-dark-400 mb-1 block">Prompt do Assistente</label>
+                    <label htmlFor="node-prompt" className="text-xs text-dark-400 mb-1 block">Prompt do Assistente</label>
                     <textarea
+                      id="node-prompt"
+                      name="node-prompt"
                       value={selectedNode.data.prompt || ''}
                       onChange={(e) => updateNodeData(selectedNode.id, { prompt: e.target.value })}
                       placeholder="Instruções para a IA..."

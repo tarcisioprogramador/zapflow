@@ -100,7 +100,7 @@ export default function LeadCaptureForm({
         <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
           <Check className="w-8 h-8 text-emerald-400" />
         </div>
-        <h3 className="text-xl font-display font-bold text-white mb-2">Obrigado!</h3>
+        <h3 className="text-xl font-heading font-bold text-white mb-2">Obrigado!</h3>
         <p className="text-dark-400">Seus dados foram capturados. Entraremos em contato em breve!</p>
       </div>
     );
@@ -109,7 +109,7 @@ export default function LeadCaptureForm({
   return (
     <div className="glass-card p-8">
       <div className="text-center mb-6">
-        <h3 className="text-2xl font-display font-bold text-white mb-2">{title}</h3>
+        <h3 className="text-2xl font-heading font-bold text-white mb-2">{title}</h3>
         <p className="text-dark-400">{subtitle}</p>
       </div>
 

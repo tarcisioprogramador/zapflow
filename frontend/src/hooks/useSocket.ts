@@ -9,7 +9,8 @@ export function useSocket() {
   useEffect(() => {
     if (!token) return;
 
-    const socket = io(window.location.origin, {
+    const serverUrl = import.meta.env.VITE_API_URL || window.location.origin;
+    const socket = io(serverUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],
     });

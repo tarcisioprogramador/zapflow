@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store';
 import { authApi } from '../api';
-import { Zap, Eye, EyeOff, ArrowRight, Bot, MessageSquare, GitBranch, BarChart3 } from 'lucide-react';
+import { Zap, Eye, EyeOff, ArrowRight, Bot, MessageSquare, GitBranch, BarChart3, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function LoginPage() {
@@ -29,24 +29,21 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex bg-dark-950">
       {/* Left - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-dark-950">
+      <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md animate-fade-in">
           {/* Logo */}
           <div className="flex items-center gap-3 mb-10">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-zap-500 to-brand-600 flex items-center justify-center shadow-lg shadow-zap-500/30">
-              <Zap className="w-7 h-7 text-white" />
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-zap-500 to-brand-600 flex items-center justify-center shadow-lg shadow-zap-500/20">
+              <Zap className="w-6 h-6 text-white" />
             </div>
-            <div>
-              <h1 className="text-2xl font-display font-bold text-white">
-                Zap<span className="text-zap-400">Flow</span>
-              </h1>
-              <p className="text-xs text-dark-400">Automação Inteligente</p>
-            </div>
+            <h1 className="text-xl font-heading font-bold text-white">
+              Zap<span className="text-zap-400">Flow</span>
+            </h1>
           </div>
 
-          <h2 className="text-3xl font-display font-bold text-white mb-2">
+          <h2 className="text-3xl font-heading font-bold text-white mb-2">
             Bem-vindo de volta
           </h2>
           <p className="text-dark-400 mb-8">
@@ -63,6 +60,7 @@ export default function LoginPage() {
                 placeholder="seu@email.com"
                 className="input-field w-full"
                 required
+                autoComplete="email"
               />
             </div>
             <div>
@@ -75,11 +73,12 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   className="input-field w-full pr-12"
                   required
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-dark-500 hover:text-dark-300"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-dark-500 hover:text-dark-300 transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -88,7 +87,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full flex items-center justify-center gap-2 py-3"
+              className="btn-primary w-full flex items-center justify-center gap-2 py-3 text-base"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -108,39 +107,59 @@ export default function LoginPage() {
             </Link>
           </p>
 
-          {/* Demo credentials */}
-          <div className="mt-8 p-4 rounded-xl bg-dark-800/50 border border-dark-700/50">
-            <p className="text-xs font-medium text-dark-400 mb-2">🧪 Conta de demonstração:</p>
-            <p className="text-xs text-dark-300 font-mono">admin@zapflow.com / 123456</p>
-          </div>
+
         </div>
       </div>
 
       {/* Right - Hero */}
-      <div className="hidden lg:flex flex-1 items-center justify-center bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 border-l border-dark-700/30 p-12">
+      <div className="hidden lg:flex flex-1 items-center justify-center bg-dark-900/40 border-l border-dark-700/30 p-12">
         <div className="max-w-lg animate-slide-in">
-          <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-zap-500/10 border border-zap-500/20 mb-6">
+            <Zap className="w-4 h-4 text-zap-400" />
+            <span className="text-xs font-medium text-zap-400">Automação com IA</span>
+          </div>
+
+          <h3 className="text-2xl font-heading font-bold text-white mb-4">
+            Tudo que você precisa em{' '}
+            <span className="text-zap-400">um lugar</span>
+          </h3>
+
+          <div className="grid grid-cols-2 gap-3 mb-8">
             {[
-              { icon: MessageSquare, label: 'WhatsApp', desc: 'Multi-número', color: 'text-zap-400', bg: 'bg-zap-500/10' },
-              { icon: Bot, label: 'IA Avançada', desc: 'Respostas inteligentes', color: 'text-brand-400', bg: 'bg-brand-500/10' },
-              { icon: GitBranch, label: 'Automações', desc: 'Fluxos visuais', color: 'text-purple-400', bg: 'bg-purple-500/10' },
-              { icon: BarChart3, label: 'Analytics', desc: 'Métricas reais', color: 'text-orange-400', bg: 'bg-orange-500/10' },
+              { icon: MessageSquare, label: 'Multi-WhatsApp', desc: 'Vários números' },
+              { icon: Bot, label: 'IA Atendente', desc: '24 horas por dia' },
+              { icon: GitBranch, label: 'Fluxos Visuais', desc: 'Drag & drop' },
+              { icon: BarChart3, label: 'CRM + Analytics', desc: 'Pipeline completo' },
             ].map((feature) => (
               <div
                 key={feature.label}
-                className="glass-card p-4 hover:border-dark-600/60 transition-all duration-300 group"
+                className="glass-card p-4 hover:border-dark-600/60 transition-all duration-300"
               >
-                <div className={`w-10 h-10 rounded-xl ${feature.bg} flex items-center justify-center mb-3`}>
-                  <feature.icon className={`w-5 h-5 ${feature.color}`} />
+                <div className="w-9 h-9 rounded-lg bg-zap-500/10 flex items-center justify-center mb-2">
+                  <feature.icon className="w-5 h-5 text-zap-400" />
                 </div>
-                <h3 className="text-sm font-semibold text-white mb-1">{feature.label}</h3>
+                <h4 className="text-sm font-heading font-bold text-white mb-0.5">{feature.label}</h4>
                 <p className="text-xs text-dark-400">{feature.desc}</p>
               </div>
             ))}
           </div>
 
+          <div className="space-y-2 mb-6">
+            {[
+              'IA que atende, qualifica e vende 24/7',
+              'Construtor de fluxos sem programação',
+              'Campanhas em massa com texto, imagem e vídeo',
+              'Remarketing inteligente automatizado',
+            ].map((item) => (
+              <div key={item} className="flex items-center gap-3 text-sm text-dark-300">
+                <Check className="w-4 h-4 text-zap-400 flex-shrink-0" />
+                {item}
+              </div>
+            ))}
+          </div>
+
           <blockquote className="border-l-2 border-zap-500 pl-4">
-            <p className="text-dark-300 italic text-sm leading-relaxed">
+            <p className="text-dark-400 italic text-sm leading-relaxed">
               "Aumentamos a conversão em 340% depois que automatizamos o atendimento com ZapFlow."
             </p>
             <cite className="text-xs text-dark-500 mt-2 block not-italic">

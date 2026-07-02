@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { conversationsApi } from '../api';
+import { conversationsApi, whatsappApi } from '../api';
 import { Conversation, Message } from '../types';
 import { useSocket } from '../hooks/useSocket';
 import {
@@ -67,28 +67,28 @@ export default function ConversationsPage() {
         {
           id: '1', status: 'open', createdAt: '2024-03-15T10:00:00Z', updatedAt: '2024-03-15T10:05:00Z',
           contact: { id: 'c1', name: 'João Silva', phone: '+5511988888888', tags: '["lead","vip"]', createdAt: '' },
-          whatsappNumber: { number: '+5511999999999', name: 'Principal' },
+          whatsappNumber: { id: 'w1', number: '+5511999999999', name: 'Principal' },
           tags: [{ tag: { id: 't1', name: 'Lead', color: '#6366f1' } }],
           messages: [{ id: 'm1', content: 'Olá! Gostaria de saber os planos', type: 'TEXT', from: '+5511988888888', to: '+5511999999999', status: 'READ', isFromBot: false, createdAt: '2024-03-15T10:05:00Z' }],
         },
         {
           id: '2', status: 'open', createdAt: '2024-03-15T09:30:00Z', updatedAt: '2024-03-15T09:45:00Z',
           contact: { id: 'c2', name: 'Maria Santos', phone: '+5511977777777', tags: '["lead"]', createdAt: '' },
-          whatsappNumber: { number: '+5511999999999', name: 'Principal' },
+          whatsappNumber: { id: 'w1', number: '+5511999999999', name: 'Principal' },
           tags: [{ tag: { id: 't2', name: 'Urgente', color: '#ef4444' } }],
           messages: [{ id: 'm2', content: 'Preciso de suporte!', type: 'TEXT', from: '+5511977777777', to: '+5511999999999', status: 'READ', isFromBot: false, createdAt: '2024-03-15T09:45:00Z' }],
         },
         {
           id: '3', status: 'pending', createdAt: '2024-03-14T15:00:00Z', updatedAt: '2024-03-14T15:30:00Z',
           contact: { id: 'c3', name: 'Pedro Costa', phone: '+5511966666666', tags: '["cliente"]', createdAt: '' },
-          whatsappNumber: { number: '+5511999999999', name: 'Principal' },
+          whatsappNumber: { id: 'w1', number: '+5511999999999', name: 'Principal' },
           tags: [],
           messages: [{ id: 'm3', content: 'Vou analisar a proposta', type: 'TEXT', from: '+5511999999999', to: '+5511966666666', status: 'DELIVERED', isFromBot: true, createdAt: '2024-03-14T15:30:00Z' }],
         },
         {
           id: '4', status: 'closed', createdAt: '2024-03-13T11:00:00Z', updatedAt: '2024-03-13T11:20:00Z',
           contact: { id: 'c4', name: 'Ana Oliveira', phone: '+5511955555555', tags: '["lead","interessado"]', createdAt: '' },
-          whatsappNumber: { number: '+5511888888888', name: 'Suporte' },
+          whatsappNumber: { id: 'w2', number: '+5511888888888', name: 'Suporte' },
           tags: [{ tag: { id: 't3', name: 'Fechado', color: '#10b981' } }],
           messages: [{ id: 'm4', content: 'Obrigada! Fechado!', type: 'TEXT', from: '+5511955555555', to: '+5511888888888', status: 'READ', isFromBot: false, createdAt: '2024-03-13T11:20:00Z' }],
         },
@@ -103,9 +103,11 @@ export default function ConversationsPage() {
 
   const handleSend = async () => {
     if (!newMessage.trim() || !selected) return;
+
+    const toPhone = selected.contact?.phone || newMessage.trim();
     const msg: Message = {
       id: `msg-${Date.now()}`, content: newMessage, type: 'TEXT',
-      from: selected.whatsappNumber.number, to: selected.contact?.phone || '',
+      from: selected.whatsappNumber.number, to: toPhone,
       status: 'SENT', isFromBot: true, createdAt: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, msg]);
@@ -114,8 +116,15 @@ export default function ConversationsPage() {
 
     // Send via API
     try {
-      await conversationsApi.list(); // In production, use send endpoint
-    } catch { /* demo mode */ }
+      // Send via the connected WhatsApp number
+      await whatsappApi.send(selected.whatsappNumber.id, {
+        to: toPhone,
+        message: msg.content,
+      });
+    } catch (err: any) {
+      // Demo mode - message saved locally, no backend to send
+      console.log('[Conversations] Message queued (demo mode)');
+    }
   };
 
   const filteredConversations = conversations.filter((c) =>
@@ -132,12 +141,14 @@ export default function ConversationsPage() {
       <div className="w-96 border-r border-dark-700/50 flex flex-col bg-dark-900/50">
         <div className="p-4 border-b border-dark-700/50">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-display font-bold text-white">Conversas</h2>
+            <h2 className="text-lg font-heading font-bold text-white">Conversas</h2>
             <button className="btn-ghost p-2"><Filter className="w-4 h-4" /></button>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-500" />
             <input
+              id="conversations-search"
+              name="conversations-search"
               type="text" value={search} onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar conversa..."
               className="input-field pl-10 w-full text-sm"
@@ -234,6 +245,8 @@ export default function ConversationsPage() {
               <button className="btn-ghost p-2"><Image className="w-5 h-5 text-dark-400" /></button>
               <button className="btn-ghost p-2"><Mic className="w-5 h-5 text-dark-400" /></button>
               <input
+                id="chat-message"
+                name="chat-message"
                 type="text" value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
@@ -250,7 +263,7 @@ export default function ConversationsPage() {
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <MessageSquare className="w-16 h-16 text-dark-600 mx-auto mb-4" />
-            <h3 className="text-lg font-display font-bold text-dark-400">Selecione uma conversa</h3>
+            <h3 className="text-lg font-heading font-bold text-dark-400">Selecione uma conversa</h3>
             <p className="text-sm text-dark-500 mt-1">Escolha uma conversa ao lado para iniciar</p>
           </div>
         </div>

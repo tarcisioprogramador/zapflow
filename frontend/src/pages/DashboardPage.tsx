@@ -95,7 +95,7 @@ export default function DashboardPage() {
                 {stat.change}
               </span>
             </div>
-            <p className="text-2xl font-display font-bold text-white">{stat.value}</p>
+            <p className="text-2xl font-heading font-bold text-white">{stat.value}</p>
             <p className="text-sm text-dark-400 mt-1">{stat.label}</p>
           </div>
         ))}
@@ -107,7 +107,7 @@ export default function DashboardPage() {
         <div className="glass-card p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="text-lg font-display font-bold text-white">Mensagens</h3>
+              <h3 className="text-lg font-heading font-bold text-white">Mensagens</h3>
               <p className="text-sm text-dark-400">Últimos 7 dias</p>
             </div>
             <BarChart3 className="w-5 h-5 text-dark-500" />
@@ -133,7 +133,7 @@ export default function DashboardPage() {
         <div className="glass-card p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="text-lg font-display font-bold text-white">Pipeline de Vendas</h3>
+              <h3 className="text-lg font-heading font-bold text-white">Pipeline de Vendas</h3>
               <p className="text-sm text-dark-400">Cards por etapa</p>
             </div>
             <TrendingUp className="w-5 h-5 text-dark-500" />
@@ -157,7 +157,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Quick Stats */}
         <div className="glass-card p-6">
-          <h3 className="text-lg font-display font-bold text-white mb-4">Resumo</h3>
+          <h3 className="text-lg font-heading font-bold text-white mb-4">Resumo</h3>
           <div className="space-y-4">
             {[
               { label: 'Flows Ativos', value: metrics?.activeFlows || 0, icon: GitBranch, color: 'text-purple-400' },
@@ -177,11 +177,11 @@ export default function DashboardPage() {
 
         {/* AI Performance */}
         <div className="glass-card p-6">
-          <h3 className="text-lg font-display font-bold text-white mb-4">Performance IA</h3>
+          <h3 className="text-lg font-heading font-bold text-white mb-4">Performance IA</h3>
           <div className="space-y-4">
             <div className="text-center p-4 rounded-xl bg-gradient-to-r from-brand-500/10 to-zap-500/10 border border-brand-500/20">
               <Zap className="w-8 h-8 text-zap-400 mx-auto mb-2" />
-              <p className="text-3xl font-display font-bold text-white">94%</p>
+              <p className="text-3xl font-heading font-bold text-white">94%</p>
               <p className="text-sm text-dark-400">Taxa de acerto</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -200,7 +200,7 @@ export default function DashboardPage() {
         {/* Recent Activity */}
         <div className="glass-card p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-display font-bold text-white">Atividade Recente</h3>
+            <h3 className="text-lg font-heading font-bold text-white">Atividade Recente</h3>
             <Clock className="w-4 h-4 text-dark-500" />
           </div>
           <div className="space-y-3">

@@ -41,6 +41,7 @@ export const whatsappApi = {
   send: (id: string, data: { to: string; message: string; type?: string }) =>
     api.post(`/whatsapp/${id}/send`, data),
   delete: (id: string) => api.delete(`/whatsapp/${id}`),
+  disconnect: (id: string) => api.post(`/whatsapp/${id}/disconnect`),
   getQrCode: (id: string) => api.get(`/whatsapp/${id}/qrcode`),
 };
 

@@ -27,7 +27,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
         <div className="min-h-screen bg-dark-950 flex items-center justify-center p-8">
           <div className="text-center max-w-md">
             <AlertTriangle className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
-            <h2 className="text-xl font-display font-bold text-white mb-2">Algo deu errado</h2>
+            <h2 className="text-xl font-heading font-bold text-white mb-2">Algo deu errado</h2>
             <p className="text-dark-400 text-sm mb-6">
               Ocorreu um erro inesperado. Tente recarregar a página.
             </p>

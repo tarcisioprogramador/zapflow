@@ -11,7 +11,15 @@ import {
   sendText,
   sendMedia,
   setWebhook,
+  BASE_URL,
+  API_KEY,
 } from '../services/whatsapp';
+import {
+  setTrialExpiration,
+  isTrialExpired,
+  getTrialRemainingFormatted,
+  disconnectExpiredTrial,
+} from '../services/trial';
 
 const router = Router();
 
@@ -438,9 +446,26 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Check and disconnect any expired trials
+    const numbersWithTrial = await Promise.all(
+      numbers.map(async (num) => {
+        try {
+          const expired = await isTrialExpired(num.id);
+          if (expired && num.status !== 'DISCONNECTED') {
+            await disconnectExpiredTrial(num.id);
+            return { ...num, status: 'DISCONNECTED', trialExpired: true, trialRemaining: null };
+          }
+          const remaining = await getTrialRemainingFormatted(num.id);
+          return { ...num, trialExpired: false, trialRemaining: remaining };
+        } catch {
+          return { ...num, trialExpired: false, trialRemaining: null };
+        }
+      })
+    );
+
     // Optionally check real status from Evolution API
     const numbersWithStatus = await Promise.all(
-      numbers.map(async (num) => {
+      numbersWithTrial.map(async (num) => {
         if (num.instanceId) {
           try {
             const status = await getConnectionState(num.instanceId);
@@ -485,12 +510,20 @@ router.post('/connect', async (req: AuthRequest, res: Response): Promise<void> =
       return;
     }
 
+    // Set 24h trial for basic plans (FREE, STARTER)
+    const isBasicPlan = user.plan === 'FREE' || user.plan === 'START' || user.plan === 'STARTER';
+
     // Check if Evolution API is configured
     if (!BASE_URL || !API_KEY) {
       // Demo mode: create without Evolution API
       const whatsappNumber = await prisma.whatsAppNumber.create({
         data: { number, name, status: 'CONNECTING', organizationId: user.organizationId },
       });
+
+      // Set trial expiration for basic plans (24h)
+      if (isBasicPlan) {
+        await setTrialExpiration(whatsappNumber.id);
+      }
 
       // Simulate connection after 3s
       setTimeout(async () => {
@@ -530,6 +563,11 @@ router.post('/connect', async (req: AuthRequest, res: Response): Promise<void> =
       },
     });
 
+    // Set trial expiration for basic plans (24h)
+    if (isBasicPlan) {
+      await setTrialExpiration(whatsappNumber.id);
+    }
+
     // Get QR code
     try {
       const qr = await getQRCode(instanceName);
@@ -559,6 +597,13 @@ router.post('/:id/send', async (req: AuthRequest, res: Response): Promise<void> 
     const number = await prisma.whatsAppNumber.findUnique({ where: { id: req.params.id } });
     if (!number || number.status !== 'CONNECTED') {
       res.status(400).json({ error: 'Número não conectado' });
+      return;
+    }
+
+    // Check if trial expired
+    if (await isTrialExpired(req.params.id)) {
+      await disconnectExpiredTrial(req.params.id);
+      res.status(403).json({ error: 'Trial expirado. Faça upgrade do plano para continuar.' });
       return;
     }
 
@@ -659,6 +704,14 @@ router.get('/:id/qrcode', async (req: AuthRequest, res: Response): Promise<void>
     const number = await prisma.whatsAppNumber.findUnique({ where: { id: req.params.id } });
     if (!number) { res.status(404).json({ error: 'Número não encontrado' }); return; }
 
+    // Check if trial expired
+    const trialExpired = await isTrialExpired(req.params.id);
+    if (trialExpired) {
+      await disconnectExpiredTrial(req.params.id);
+      res.json({ qrcode: null, status: 'DISCONNECTED', trialExpired: true });
+      return;
+    }
+
     // Try to get fresh QR from Evolution API
     if (number.instanceId && BASE_URL && API_KEY) {
       try {
@@ -734,6 +787,14 @@ router.get('/:id/status', async (req: AuthRequest, res: Response): Promise<void>
     const number = await prisma.whatsAppNumber.findUnique({ where: { id: req.params.id } });
     if (!number) { res.status(404).json({ error: 'Número não encontrado' }); return; }
 
+    // Check trial first
+    const trialExpired = await isTrialExpired(req.params.id);
+    if (trialExpired) {
+      await disconnectExpiredTrial(req.params.id);
+      res.json({ status: 'DISCONNECTED', trialExpired: true });
+      return;
+    }
+
     if (number.instanceId && BASE_URL && API_KEY) {
       try {
         const status = await getConnectionState(number.instanceId);
@@ -754,7 +815,10 @@ router.get('/:id/status', async (req: AuthRequest, res: Response): Promise<void>
       }
     }
 
-    res.json({ status: number.status });
+    // Get trial remaining time for display
+    const trialRemaining = await getTrialRemainingFormatted(req.params.id);
+
+    res.json({ status: number.status, trialRemaining });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao verificar status' });
   }

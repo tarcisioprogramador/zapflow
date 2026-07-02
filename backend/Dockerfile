@@ -5,9 +5,7 @@ WORKDIR /app
 # Install OpenSSL (required by Prisma for PostgreSQL)
 RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
-# Copy package files from backend/ directory
-# Build context must be set to backend/ in Railway service settings
-# Alternatively, copy from root with backend/ prefix:
+# Copy package files — using backend/ prefix since Railway uses project root as build context
 COPY backend/package*.json ./
 COPY backend/prisma ./prisma/
 

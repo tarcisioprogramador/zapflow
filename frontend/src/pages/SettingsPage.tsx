@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../store';
-import { webhooksApi, usersApi } from '../api';
+import { webhooksApi, usersApi, paymentsApi } from '../api';
 import { Webhook } from '../types';
 import {
   User, Users, Webhook as WebhookIcon, Key, CreditCard, Bell, Shield, Globe, Plus, Trash2, Send,
-  ExternalLink, Copy, Check, Zap,
+  ExternalLink, Copy, Check, Zap, Loader2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -15,6 +15,71 @@ const tabs = [
   { id: 'api', label: 'API', icon: Key },
   { id: 'plan', label: 'Plano', icon: CreditCard },
 ];
+
+function PlanCard({ plan }: { plan: { id: string; name: string; price: string; period: string; features: string[]; current: boolean; popular: boolean } }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleUpgrade = async () => {
+    setLoading(true);
+    try {
+      const { data } = await paymentsApi.createCheckout({ plan: plan.id });
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.error || 'Erro ao iniciar checkout';
+      if (msg.includes('Stripe não configurado')) {
+        alert('Pagamento via Stripe ainda não configurado. Entre em contato com o suporte para assinar.');
+      } else {
+        alert(msg);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className={`glass-card p-6 relative ${plan.popular ? 'border-zap-500/50 shadow-lg shadow-zap-500/10' : ''} ${plan.current ? 'bg-zap-500/5' : ''}`}>
+      {plan.popular && (
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+          <span className="bg-zap-500 text-white text-xs font-bold px-4 py-1 rounded-full">Mais Popular</span>
+        </div>
+      )}
+      <h4 className="text-xl font-heading font-bold text-white mb-1">{plan.name}</h4>
+      <div className="flex items-baseline gap-1 mt-2 mb-4">
+        <span className="text-sm text-dark-400">R$</span>
+        <span className="text-4xl font-heading font-bold text-white">{plan.price}</span>
+        <span className="text-sm text-dark-400">{plan.period}</span>
+      </div>
+      <ul className="space-y-2 mb-6">
+        {plan.features.map((f) => (
+          <li key={f} className="flex items-center gap-2 text-sm text-dark-300">
+            <Zap className="w-3.5 h-3.5 text-zap-400 flex-shrink-0" /> {f}
+          </li>
+        ))}
+      </ul>
+      <button
+        onClick={plan.current ? undefined : handleUpgrade}
+        disabled={loading}
+        className={`w-full flex items-center justify-center gap-2 font-semibold px-5 py-3 rounded-lg transition-all ${
+          plan.current
+            ? 'bg-dark-700 text-white border border-dark-600 cursor-default'
+            : plan.popular
+              ? 'bg-zap-500 hover:bg-zap-600 text-white shadow-lg shadow-zap-500/20 active:scale-[0.98]'
+              : 'bg-dark-800 hover:bg-dark-700 text-white border border-dark-600 active:scale-[0.98]'
+        }`}
+      >
+        {loading ? (
+          <Loader2 className="w-5 h-5 animate-spin" />
+        ) : plan.current ? (
+          'Plano Atual'
+        ) : (
+          'Fazer Upgrade'
+        )}
+      </button>
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('profile');
@@ -262,39 +327,15 @@ export default function SettingsPage() {
           {activeTab === 'plan' && (
             <div className="max-w-4xl">
               <h3 className="text-lg font-heading font-bold text-white mb-6">Seu Plano</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
                 {[
-                  { name: 'Starter', price: 'R$ 97', period: '/mês', features: ['1 número WhatsApp', '5 atendentes', 'CRM Kanban', 'Automações básicas'], current: user?.plan === 'STARTER', popular: false },
-                  { name: 'Pro', price: 'R$ 197', period: '/mês', features: ['3 números WhatsApp', 'Atendentes ilimitados', 'IA Integrada', 'Webhooks & API', 'Disparos ilimitados'], current: user?.plan === 'PRO', popular: true },
-                  { name: 'Enterprise', price: 'R$ 497', period: '/mês', features: ['Números ilimitados', 'Tudo do Pro + SLA', 'Suporte prioritário', 'Integrações custom', 'Onboarding'], current: user?.plan === 'ENTERPRISE', popular: false },
+                  { id: 'STARTER', name: 'IA Starter', price: '97', period: '/mês', features: ['1 Número conectado', '5 atendentes', 'CRM Kanban (2 quadros)', '15.000 Webhooks', '5M Tokens de IA'], current: user?.plan === 'STARTER' || user?.plan === 'FREE', popular: false },
+                  { id: 'PRO', name: 'IA Pro', price: '197', period: '/mês', features: ['1 Número conectado', 'Atendentes ilimitados', 'CRM Kanban (5 quadros)', '30.000 Webhooks', '10M Tokens de IA', 'Integração Post/Put/Get'], current: user?.plan === 'PRO', popular: true },
                 ].map((plan) => (
-                  <div key={plan.name} className={`glass-card p-6 relative ${plan.popular ? 'border-zap-500/50 shadow-glow' : ''} ${plan.current ? 'bg-zap-500/5' : ''}`}>
-                    {plan.popular && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                        <span className="badge badge-green text-[10px] px-3 py-1">Mais Popular</span>
-                      </div>
-                    )}
-                    {plan.current && (
-                      <div className="absolute top-4 right-4">
-                        <span className="badge badge-blue text-[10px]">Plano Atual</span>
-                      </div>
-                    )}
-                    <h4 className="text-lg font-heading font-bold text-white">{plan.name}</h4>
-                    <div className="flex items-baseline gap-1 mt-2 mb-4">
-                      <span className="text-3xl font-heading font-bold text-white">{plan.price}</span>
-                      <span className="text-sm text-dark-400">{plan.period}</span>
-                    </div>
-                    <ul className="space-y-2 mb-6">
-                      {plan.features.map((f) => (
-                        <li key={f} className="flex items-center gap-2 text-sm text-dark-300">
-                          <Zap className="w-3.5 h-3.5 text-zap-400" /> {f}
-                        </li>
-                      ))}
-                    </ul>
-                    <button className={plan.current ? 'btn-secondary w-full' : 'btn-primary w-full'}>
-                      {plan.current ? 'Plano Atual' : 'Fazer Upgrade'}
-                    </button>
-                  </div>
+                  <PlanCard
+                    key={plan.id}
+                    plan={plan}
+                  />
                 ))}
               </div>
             </div>

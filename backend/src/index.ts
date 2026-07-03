@@ -16,6 +16,7 @@ import webhookRoutes from './routes/webhooks';
 import remarketingRoutes from './routes/remarketing';
 import knowledgeBaseRoutes from './routes/knowledge-base';
 import trackingRoutes from './routes/tracking';
+import paymentRoutes, { paymentWebhookRouter } from './routes/payments';
 import { checkAndDisconnectExpiredTrials } from './services/trial';
 
 const app = express();
@@ -26,8 +27,20 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors({ origin: process.env.FRONTEND_URL || '*', credentials: true }));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Parse JSON body but preserve raw body for Stripe webhook signature verification
+app.use(
+  express.json({
+    limit: '50mb',
+    verify: (req: any, _res, buf) => {
+      // Store raw body for Stripe webhook signature verification
+      if (req.headers['stripe-signature']) {
+        req.rawBody = buf.toString();
+      }
+    },
+  })
+);
 
 // Make io accessible to routes
 app.set('io', io);
@@ -56,8 +69,9 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', name: process.env.APP_NAME || 'ZapFlow', version: '1.0.0' });
 });
 
-// Public webhook route (no auth required - called by Evolution API)
+// Public webhook routes (no auth required)
 app.use('/api/webhook', webhookRouter);
+app.use('/api/webhook', paymentWebhookRouter);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -72,6 +86,7 @@ app.use('/api/webhooks', webhookRoutes);
 app.use('/api/remarketing', remarketingRoutes);
 app.use('/api/knowledge-base', knowledgeBaseRoutes);
 app.use('/api/tracking', trackingRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // SPA fallback — all non-API routes serve index.html
 app.get('*', (_req, res) => {

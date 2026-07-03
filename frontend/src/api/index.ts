@@ -144,4 +144,13 @@ export const usersApi = {
   delete: (id: string) => api.delete(`/users/${id}`),
 };
 
+// Payments
+export const paymentsApi = {
+  getConfig: () => api.get('/payments/config'),
+  createCheckout: (data: { plan: string }) => api.post('/payments/create-checkout', data),
+  getSession: (id: string) => api.get(`/payments/session/${id}`),
+  getSubscription: () => api.get('/payments/subscription'),
+  createPortal: () => api.post('/payments/portal'),
+};
+
 export default api;

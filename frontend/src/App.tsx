@@ -14,6 +14,8 @@ import ContactsPage from './pages/ContactsPage';
 import SettingsPage from './pages/SettingsPage';
 import LandingPage from './pages/LandingPage';
 import KnowledgeBasePage from './pages/KnowledgeBasePage';
+import PaymentSuccessPage from './pages/PaymentSuccessPage';
+import PaymentCancelPage from './pages/PaymentCancelPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -40,6 +42,8 @@ export default function App() {
         <Route path="knowledge-base" element={<KnowledgeBasePage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
+      <Route path="/payment/success" element={<PaymentSuccessPage />} />
+      <Route path="/payment/cancel" element={<PaymentCancelPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

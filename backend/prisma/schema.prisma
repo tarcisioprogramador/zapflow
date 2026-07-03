@@ -64,6 +64,10 @@ model WhatsAppNumber {
   organizationId String
 
   conversations Conversation[]
+
+  @@index([organizationId])
+  @@index([instanceId])
+  @@index([status])
 }
 
 // ─── Conversations & Messages ───────────────────────────
@@ -85,6 +89,11 @@ model Conversation {
 
   messages  Message[]
   tags      ConversationTag[]
+
+  @@index([status])
+  @@index([whatsappNumberId])
+  @@index([contactId])
+  @@index([userId])
 }
 
 model Message {
@@ -100,6 +109,10 @@ model Message {
 
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   conversationId String
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@index([isFromBot])
 }
 
 model Tag {
@@ -186,6 +199,9 @@ model Contact {
 
   conversations Conversation[]
   crmCards      CrmCard[]
+
+  @@index([userId])
+  @@index([phone])
 }
 
 // ─── Knowledge Base ──────────────────────────────────────
@@ -220,6 +236,10 @@ model Flow {
   userId  String?
 
   executions FlowExecution[]
+
+  @@index([userId])
+  @@index([isActive])
+  @@index([triggerType])
 }
 
 model FlowExecution {
@@ -231,6 +251,9 @@ model FlowExecution {
 
   flow   Flow   @relation(fields: [flowId], references: [id])
   flowId String
+
+  @@index([flowId])
+  @@index([status])
 }
 
 // ─── Campaigns (Bulk Messages) ──────────────────────────

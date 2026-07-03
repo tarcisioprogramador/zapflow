@@ -172,11 +172,12 @@ async function processFlowTriggers(
   organizationId: string
 ): Promise<boolean> {
   try {
-    // Find active flows with matching keyword triggers
+    // Find active flows with matching keyword triggers for this organization
     const flows = await prisma.flow.findMany({
       where: {
         isActive: true,
         triggerType: 'keyword',
+        user: { organizationId },
       },
     });
 
@@ -237,9 +238,10 @@ async function handleAIReply(
     const organizationId = whatsappNumber.organizationId;
     if (!organizationId) return;
 
-    // Check if OpenAI API key is configured
-    if (!process.env.OPENAI_API_KEY) {
-      console.log('[AI] OpenAI API key not configured, skipping auto-reply');
+    // Check if any AI provider is configured
+    const hasAIProvider = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
+    if (!hasAIProvider) {
+      console.log('[AI] No AI provider configured (GROQ_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY), skipping auto-reply');
       return;
     }
 

@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { createServer } from 'http';
 import { setupWebSocket } from './config/websocket';
@@ -26,8 +28,29 @@ const io = setupWebSocket(httpServer);
 const PORT = process.env.PORT || 3001;
 
 // Middleware
+app.use(compression()); // Gzip response compression
 app.use(cors({ origin: process.env.FRONTEND_URL || '*', credentials: true }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Rate limiting for API routes
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: parseInt(process.env.RATE_LIMIT_MAX || '100'),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas requisições. Tente novamente em instantes.' },
+});
+app.use('/api', apiLimiter);
+
+// Stricter rate limit for auth routes
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' },
+});
+app.use('/api/auth', authLimiter);
 
 // Parse JSON body but preserve raw body for Stripe webhook signature verification
 app.use(

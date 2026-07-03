@@ -482,9 +482,34 @@ export default function LandingPage() {
           <h2 className="text-3xl md:text-4xl font-heading font-bold text-center mb-4">
             Planos e preços
           </h2>
-          <p className="text-sm text-dark-500 text-center mb-10 max-w-3xl mx-auto">
+          <p className="text-sm text-dark-500 text-center mb-4 max-w-3xl mx-auto">
             Não importa se suas necessidades são grandes ou pequenas, estamos aqui para ajudar você a escalar.
           </p>
+
+          {/* Trial notice */}
+          <div className="max-w-4xl mx-auto mb-6">
+            <div className="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20 text-center">
+              <p className="text-sm text-yellow-400/90">
+                ⚠️ <strong>OBS:</strong> O Teste Gratuito de 7 dias é válido apenas nos planos <strong>SEM INTELIGÊNCIA ARTIFICIAL</strong>.
+              </p>
+            </div>
+          </div>
+
+          {/* Number selector */}
+          <div className="max-w-4xl mx-auto mb-8">
+            <div className="p-5 rounded-xl bg-dark-800/30 border border-dark-700/30">
+              <p className="text-sm font-medium text-white mb-3 text-center">
+                Quantos números de Whatsapp você precisa conectar?
+              </p>
+              <div className="flex items-center justify-center gap-4">
+                <span className="text-sm text-dark-400">Até 3 números</span>
+                <span className="text-dark-600">|</span>
+                <span className="text-sm text-dark-400">
+                  Número adicional: <span className="text-zap-400 font-bold">R$ 97,00</span>
+                </span>
+              </div>
+            </div>
+          </div>
 
           {/* Plans Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto mb-12">

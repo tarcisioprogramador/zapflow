@@ -88,7 +88,7 @@ export default function PaymentSuccessPage() {
                 Voltar ao Início
               </Link>
               <a
-                href="mailto:contato@frontzapp.com"
+                href="mailto:contato@zapflow.com"
                 className="inline-flex items-center gap-2 bg-zap-500 hover:bg-zap-600 text-white font-medium px-6 py-3 rounded-lg transition-all"
               >
                 Falar com Suporte

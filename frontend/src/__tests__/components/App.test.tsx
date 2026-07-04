@@ -50,8 +50,8 @@ describe('App Routing', () => {
 
   it('should show Landing page at /landing', () => {
     renderWithRouter('/landing');
-    const frontzappElements = screen.getAllByText('Frontzapp');
-    expect(frontzappElements.length).toBeGreaterThan(0);
+    const zapflowElements = screen.getAllByText('ZapFlow');
+    expect(zapflowElements.length).toBeGreaterThan(0);
   });
 
   it('should redirect unknown routes to login when not authenticated', () => {

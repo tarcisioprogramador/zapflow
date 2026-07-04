@@ -106,11 +106,11 @@ const plans = [
 const faqs = [
   {
     q: 'Não sou bom com tecnologia. Como vou saber o que fazer?',
-    a: 'A ferramenta do Frontzapp é a mais fácil do mercado para construção de conversas automáticas. Você simplesmente arrasta um bloco de conversa para conectar com outro e seu robô fica pronto em minutos. Você tem acesso a todo um treinamento em vídeo aulas que te mostram como criar o robô que quiser. E nosso time de suporte está sempre disponível para tirar dúvidas.',
+    a: 'A ferramenta do ZapFlow é a mais fácil do mercado para construção de conversas automáticas. Você simplesmente arrasta um bloco de conversa para conectar com outro e seu robô fica pronto em minutos. Você tem acesso a todo um treinamento em vídeo aulas que te mostram como criar o robô que quiser. E nosso time de suporte está sempre disponível para tirar dúvidas.',
   },
   {
-    q: 'Como consigo conectar meu WhatsApp ao Frontzapp?',
-    a: 'A conexão com o Frontzapp é a mesma realizada com o WhatsApp web. Basta escanear o QR Code da plataforma e seu WhatsApp estará conectado.',
+    q: 'Como consigo conectar meu WhatsApp ao ZapFlow?',
+    a: 'A conexão com o ZapFlow é a mesma realizada com o WhatsApp web. Basta escanear o QR Code da plataforma e seu WhatsApp estará conectado.',
   },
   {
     q: 'Quantos números de WhatsApp consigo conectar na plataforma?',
@@ -118,7 +118,7 @@ const faqs = [
   },
   {
     q: 'Meu computador precisa ficar ligado ou com o navegador aberto para o robô funcionar?',
-    a: 'Não. Após escanear o QR Code do Frontzapp o seu WhatsApp estará conectado e não será necessário manter nada aberto. A automação vai funcionar até mesmo com seu celular desligado.',
+    a: 'Não. Após escanear o QR Code do ZapFlow o seu WhatsApp estará conectado e não será necessário manter nada aberto. A automação vai funcionar até mesmo com seu celular desligado.',
   },
   {
     q: 'O que é um robô?',
@@ -137,16 +137,16 @@ const faqs = [
     a: 'São palavras ou frases que acionam os seus robôs. Você pode, por exemplo, criar a palavra chave "preço" para acionar o robô de cardápio/menu toda vez que um cliente enviar uma mensagem que contenha essa palavra.',
   },
   {
-    q: 'Quantas pessoas podem atender no mesmo número pelo bate papo do Frontzapp?',
+    q: 'Quantas pessoas podem atender no mesmo número pelo bate papo do ZapFlow?',
     a: 'No plano PRO você pode colocar atendentes ilimitados na sua conta.',
   },
   {
     q: 'Como terei acesso a biblioteca de robôs?',
-    a: 'Assim que você adquirir o seu acesso, os robôs estarão disponíveis na sua conta do Frontzapp e também na nossa comunidade do Discord.',
+    a: 'Assim que você adquirir o seu acesso, os robôs estarão disponíveis na sua conta do ZapFlow e também na nossa comunidade do Discord.',
   },
   {
     q: 'Se eu não gostar, como eu cancelo?',
-    a: 'Você tem 7 dias para testar toda a ferramenta do Frontzapp e caso deseje cancelar é só enviar um email para cancelamento@frontzapp.com dentro do prazo dos 7 dias. Seu dinheiro será 100% devolvido sem perguntas.',
+    a: 'Você tem 7 dias para testar toda a ferramenta do ZapFlow e caso deseje cancelar é só enviar um email para cancelamento@zapflow.com dentro do prazo dos 7 dias. Seu dinheiro será 100% devolvido sem perguntas.',
   },
 ];
 
@@ -244,7 +244,7 @@ export default function LandingPage() {
               <Zap className="w-5 h-5 text-white" />
             </div>
             <span className="text-lg font-heading font-bold">
-              Front<span className="text-zap-400">zapp</span>
+              Zap<span className="text-zap-400">Flow</span>
             </span>
           </div>
           <div className="hidden md:flex items-center gap-6">
@@ -282,7 +282,7 @@ export default function LandingPage() {
             </p>
 
             <p className="text-base text-dark-500 max-w-3xl mx-auto mb-10 leading-relaxed">
-              Esqueça o atendimento manual. Com o Frontzapp, você cria fluxos em minutos e deixa sua IA fechar negócios sozinha.
+              Esqueça o atendimento manual. Com o ZapFlow, você cria fluxos em minutos e deixa sua IA fechar negócios sozinha.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
@@ -343,10 +343,10 @@ export default function LandingPage() {
       <section className="py-20 px-6">
         <div className="max-w-5xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-heading font-bold mb-6">
-            O futuro das vendas começa com o <span className="text-zap-400">Frontzapp</span>
+            O futuro das vendas começa com o <span className="text-zap-400">ZapFlow</span>
           </h2>
           <p className="text-lg text-dark-400 max-w-4xl mx-auto leading-relaxed mb-8">
-            Dê adeus às extensões instáveis e plataformas limitadas, com o Frontzapp, você cria fluxos inteligentes,
+            Dê adeus às extensões instáveis e plataformas limitadas, com o ZapFlow, você cria fluxos inteligentes,
             envia áudios e mídias com facilidade, e ainda tem uma IA vendendo por você todos os dias,
             a escolha ideal para escalar o atendimento e multiplicar suas vendas.
           </p>
@@ -388,7 +388,7 @@ export default function LandingPage() {
       <section className="py-20 px-6">
         <div className="max-w-4xl mx-auto">
           <h2 className="text-3xl md:text-4xl font-heading font-bold text-center mb-4">
-            Frontzapp é para você se:
+            ZapFlow é para você se:
           </h2>
           <div className="mt-10 space-y-4">
             {targetAudience.map((item) => (
@@ -419,11 +419,11 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Why Frontzapp */}
+      {/* Why ZapFlow */}
       <section className="py-20 px-6">
         <div className="max-w-6xl mx-auto">
           <h2 className="text-3xl md:text-4xl font-heading font-bold text-center mb-4">
-            Por que o <span className="text-zap-400">Frontzapp</span> é a escolha definitiva para quem vende no WhatsApp?
+            Por que o <span className="text-zap-400">ZapFlow</span> é a escolha definitiva para quem vende no WhatsApp?
           </h2>
           <p className="text-base text-dark-400 text-center max-w-4xl mx-auto mb-12 leading-relaxed">
             Somos a ferramenta mais fácil em criar automação com IA e atendimento inteligente via WhatsApp.
@@ -559,7 +559,7 @@ export default function LandingPage() {
           <div className="max-w-4xl mx-auto mb-8">
             <div className="rounded-xl p-8 border border-brand-500/30 bg-gradient-to-r from-brand-500/5 to-zap-500/5 text-center">
               <h3 className="text-2xl font-heading font-bold text-white mb-3">PLANO PERSONALIZADO</h3>
-              <p className="text-lg font-heading font-bold text-zap-400 mb-4">Frontzapp</p>
+              <p className="text-lg font-heading font-bold text-zap-400 mb-4">ZapFlow</p>
               <div className="flex items-baseline justify-center gap-1 mb-6">
                 <span className="text-sm text-dark-400">R$</span>
                 <span className="text-4xl font-heading font-bold text-white">399</span>
@@ -575,7 +575,7 @@ export default function LandingPage() {
               </div>
               <p className="text-sm font-semibold text-white mb-6">Feito para operações sérias<br />Você escolhe o que precisa.<br />A gente monta, configura e entrega tudo rodando 100%.</p>
               <a
-                href="mailto:contato@frontzapp.com"
+                href="mailto:contato@zapflow.com"
                 className="inline-block bg-zap-500 hover:bg-zap-600 text-white font-bold px-8 py-4 rounded-lg transition-all shadow-lg shadow-zap-500/30"
               >
                 ENTRAR EM CONTATO
@@ -642,15 +642,15 @@ export default function LandingPage() {
               <Zap className="w-4 h-4 text-white" />
             </div>
             <span className="font-heading font-bold text-white">
-              Front<span className="text-zap-400">zapp</span>
+              Zap<span className="text-zap-400">Flow</span>
             </span>
           </div>
           <p className="text-sm text-dark-500 mb-2">
-            Frontzapp ©2026 - Todos os direitos reservados
+            ZapFlow ©2026 - Todos os direitos reservados
           </p>
-          <p className="text-xs text-dark-600 mb-1">contato@frontzapp.com</p>
+          <p className="text-xs text-dark-600 mb-1">contato@zapflow.com</p>
           <p className="text-xs text-dark-600">
-            CNPJ: 00.000.000/0001-00 - FRONTZAPP LTDA
+            CNPJ: 00.000.000/0001-00 - ZAPFLOW LTDA
           </p>
         </div>
       </footer>

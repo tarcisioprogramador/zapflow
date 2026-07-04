@@ -136,7 +136,7 @@ app.get('*', (_req, res) => {
 
 // Start server
 httpServer.listen(PORT, () => {
-  console.log(`\n🚀 Frontzapp Backend running on http://localhost:${PORT}`);
+  console.log(`\n🚀 ZapFlow Backend running on http://localhost:${PORT}`);
   console.log(`📡 WebSocket ready`);
   console.log(`🌐 Serving frontend from ${publicPath}\n`);
 });

@@ -5,90 +5,111 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
-const connection = new Redis(redisUrl, { maxRetriesPerRequest: null }) as any;
+let _whatsappWorker: Worker | null = null;
+let _campaignWorker: Worker | null = null;
+let _remarketingWorker: Worker | null = null;
 
-// WhatsApp message worker
-const whatsappWorker = new Worker(
-  'whatsapp-messages',
-  async (job: Job) => {
-    const { conversationId, to, message, type, mediaUrl } = job.data;
-
-    // In production, this would call Evolution API or similar
-    // For now, simulate sending
-    console.log(`[WhatsApp] Sending message to ${to}: ${message}`);
-
-    // Simulate delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    // Update message status
-    await prisma.message.update({
-      where: { id: job.data.messageId },
-      data: { status: 'SENT' },
+function tryCreateWorker<T = any>(
+  name: string,
+  processor: (job: Job<T>) => Promise<any>,
+): Worker | null {
+  try {
+    const connection = new Redis(redisUrl, {
+      maxRetriesPerRequest: null,
+      lazyConnect: true,
+      retryStrategy: () => null, // Don't retry — fail fast
     });
 
-    return { success: true };
-  },
-  { connection }
-);
-
-// Campaign message worker
-const campaignWorker = new Worker(
-  'campaign-messages',
-  async (job: Job) => {
-    const { campaignId, contactId, phone, message, mediaUrl } = job.data;
-
-    console.log(`[Campaign] Sending to ${phone}: ${message}`);
-
-    // Simulate delay between messages (rate limiting)
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    // Update contact status
-    await prisma.campaignContact.update({
-      where: { id: contactId },
-      data: { status: 'sent', sentAt: new Date() },
+    // Test connection
+    connection.connect().catch(() => {
+      console.warn(`[Queue] Worker "${name}" not started — Redis unavailable`);
+      connection.disconnect();
+      return;
     });
 
-    // Update campaign counters
-    await prisma.campaign.update({
-      where: { id: campaignId },
-      data: { totalSent: { increment: 1 } },
+    const worker = new Worker(name, processor, { connection: connection as any });
+
+    worker.on('failed', (job, err) => {
+      console.error(`[${name}] Job ${job?.id} failed:`, err.message);
     });
 
-    return { success: true };
-  },
-  { connection }
-);
-
-// Remarketing worker
-const remarketingWorker = new Worker(
-  'remarketing',
-  async (job: Job) => {
-    const { executionId, contactId, message } = job.data;
-    console.log(`[Remarketing] Sending follow-up to contact ${contactId}`);
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    await prisma.remarketingExecution.update({
-      where: { id: executionId },
-      data: { status: 'sent' },
+    worker.on('error', (err) => {
+      if ((err as any)?.code === 'ECONNREFUSED') {
+        // Silently ignore connection refused errors — Redis is optional
+        return;
+      }
+      console.error(`[${name}] Worker error:`, err.message);
     });
 
-    return { success: true };
-  },
-  { connection }
-);
+    console.log(`[Queue] Worker "${name}" started`);
+    return worker;
+  } catch (err) {
+    console.warn(`[Queue] Worker "${name}" unavailable — running without it`);
+    return null;
+  }
+}
 
-// Error handlers
-whatsappWorker.on('failed', (job, err) => {
-  console.error(`[WhatsApp] Job ${job?.id} failed:`, err.message);
-});
+// Lazy initialization — workers only created on first access
+export function getWhatsappWorker(): Worker | null {
+  if (_whatsappWorker === null) {
+    _whatsappWorker = tryCreateWorker('whatsapp-messages', async (job: Job) => {
+      const { to, message } = job.data;
 
-campaignWorker.on('failed', (job, err) => {
-  console.error(`[Campaign] Job ${job?.id} failed:`, err.message);
-});
+      console.log(`[WhatsApp] Sending message to ${to}: ${message}`);
 
-remarketingWorker.on('failed', (job, err) => {
-  console.error(`[Remarketing] Job ${job?.id} failed:`, err.message);
-});
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-export { whatsappWorker, campaignWorker, remarketingWorker };
+      await prisma.message.update({
+        where: { id: job.data.messageId },
+        data: { status: 'SENT' },
+      });
+
+      return { success: true };
+    });
+  }
+  return _whatsappWorker;
+}
+
+export function getCampaignWorker(): Worker | null {
+  if (_campaignWorker === null) {
+    _campaignWorker = tryCreateWorker('campaign-messages', async (job: Job) => {
+      const { campaignId, contactId, phone, message } = job.data;
+
+      console.log(`[Campaign] Sending to ${phone}: ${message}`);
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      await prisma.campaignContact.update({
+        where: { id: contactId },
+        data: { status: 'sent', sentAt: new Date() },
+      });
+
+      await prisma.campaign.update({
+        where: { id: campaignId },
+        data: { totalSent: { increment: 1 } },
+      });
+
+      return { success: true };
+    });
+  }
+  return _campaignWorker;
+}
+
+export function getRemarketingWorker(): Worker | null {
+  if (_remarketingWorker === null) {
+    _remarketingWorker = tryCreateWorker('remarketing', async (job: Job) => {
+      const { executionId, contactId } = job.data;
+      console.log(`[Remarketing] Sending follow-up to contact ${contactId}`);
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      await prisma.remarketingExecution.update({
+        where: { id: executionId },
+        data: { status: 'sent' },
+      });
+
+      return { success: true };
+    });
+  }
+  return _remarketingWorker;
+}

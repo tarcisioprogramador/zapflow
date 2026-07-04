@@ -10,16 +10,12 @@ router.use(authenticate);
 const CACHE_TTL = 60; // 1 minute cache for dashboard metrics
 
 async function getCachedOrFetch<T>(key: string, fetchFn: () => Promise<T>, ttl = CACHE_TTL): Promise<T> {
-  try {
-    const cached = await redis.get(key);
-    if (cached) return JSON.parse(cached);
-  } catch { /* Redis not available, skip cache */ }
+  const cached = await redis.get(key);
+  if (cached) return JSON.parse(cached);
 
   const data = await fetchFn();
 
-  try {
-    await redis.setex(key, ttl, JSON.stringify(data));
-  } catch { /* Redis not available, skip cache */ }
+  await redis.setex(key, ttl, JSON.stringify(data));
 
   return data;
 }

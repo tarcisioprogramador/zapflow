@@ -6,18 +6,28 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Seeding database...');
 
-  // Create demo organization
-  const org = await prisma.organization.create({
-    data: {
-      name: 'ZapFlow Demo',
-      plan: 'PRO',
-    },
+  // Create or get demo organization
+  const hashedPassword = await bcrypt.hash('123456', 12);
+
+  const org = await prisma.organization.upsert({
+    where: { id: 'org-demo' },
+    update: { name: 'ZapFlow Demo', plan: 'PRO' },
+    create: { id: 'org-demo', name: 'ZapFlow Demo', plan: 'PRO' },
   });
 
-  // Create demo user (PRO plan — no trial expiration)
-  const hashedPassword = await bcrypt.hash('123456', 12);
-  const user = await prisma.user.create({
-    data: {
+  // Create or update demo user (PRO plan — no trial expiration)
+  const user = await prisma.user.upsert({
+    where: { email: 'admin@zapflow.com' },
+    update: {
+      name: 'Admin',
+      password: hashedPassword,
+      role: 'OWNER',
+      plan: 'PRO',
+      organizationId: org.id,
+      trialStartedAt: new Date(),
+      trialExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    },
+    create: {
       name: 'Admin',
       email: 'admin@zapflow.com',
       password: hashedPassword,
@@ -29,9 +39,19 @@ async function main() {
     },
   });
 
-  // Create second user (attendant — FREE plan with trial)
-  await prisma.user.create({
-    data: {
+  // Create or update second user (attendant — FREE plan with trial)
+  await prisma.user.upsert({
+    where: { email: 'atendente@zapflow.com' },
+    update: {
+      name: 'Atendente 1',
+      password: hashedPassword,
+      role: 'ATTENDANT',
+      plan: 'FREE',
+      organizationId: org.id,
+      trialStartedAt: new Date(),
+      trialExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    },
+    create: {
       name: 'Atendente 1',
       email: 'atendente@zapflow.com',
       password: hashedPassword,
@@ -139,7 +159,7 @@ async function main() {
     },
   });
 
-  // Create tags
+  // Create tags (skip if they already exist)
   await prisma.tag.createMany({
     data: [
       { name: 'Lead', color: '#6366f1' },
@@ -148,6 +168,7 @@ async function main() {
       { name: 'Urgente', color: '#ef4444' },
       { name: 'Parceiro', color: '#8b5cf6' },
     ],
+    skipDuplicates: true,
   });
 
   // Create demo campaign

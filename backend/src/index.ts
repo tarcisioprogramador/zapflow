@@ -19,7 +19,7 @@ import remarketingRoutes from './routes/remarketing';
 import knowledgeBaseRoutes from './routes/knowledge-base';
 import trackingRoutes from './routes/tracking';
 import paymentRoutes, { paymentWebhookRouter } from './routes/payments';
-import { checkAndDisconnectExpiredTrials } from './services/trial';
+import { checkAndDisconnectExpiredTrials, migrateExistingUsersWithoutTrial } from './services/trial';
 
 const app = express();
 const httpServer = createServer(app);
@@ -84,8 +84,26 @@ setInterval(async () => {
   }
 }, 15 * 60 * 1000);
 
-// Run initial check on startup
-checkAndDisconnectExpiredTrials().catch(console.error);
+// Migrate existing users and check expired trials before handling requests
+(async () => {
+  try {
+    const migrated = await migrateExistingUsersWithoutTrial();
+    if (migrated > 0) {
+      console.log(`[Trial] Migrated ${migrated} existing users with 7-day trial`);
+    }
+  } catch (err) {
+    console.error('[Trial] Migration failed:', err);
+  }
+
+  try {
+    const expired = await checkAndDisconnectExpiredTrials();
+    if (expired > 0) {
+      console.log(`[Cron] Found ${expired} expired trial(s)`);
+    }
+  } catch (err) {
+    console.error('[Cron] Trial check failed:', err);
+  }
+})();
 
 // Health check
 app.get('/api/health', (_req, res) => {

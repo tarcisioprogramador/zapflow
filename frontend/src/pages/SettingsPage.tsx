@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '../store';
-import { webhooksApi, usersApi, paymentsApi } from '../api';
-import { Webhook } from '../types';
+import { webhooksApi, usersApi, paymentsApi, authApi } from '../api';
+import { Webhook, TrialStatus } from '../types';
+import PlanComparison from '../components/PlanComparison';
 import {
   User, Users, Webhook as WebhookIcon, Key, CreditCard, Bell, Shield, Globe, Plus, Trash2, Send,
   ExternalLink, Copy, Check, Zap, Loader2,
@@ -84,16 +85,25 @@ function PlanCard({ plan }: { plan: { id: string; name: string; price: string; p
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('profile');
   const user = useAuthStore((s) => s.user);
+  const [trial, setTrial] = useState<TrialStatus | null>(null);
   const [profileForm, setProfileForm] = useState({ name: user?.name || '', email: user?.email || '' });
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [newWebhook, setNewWebhook] = useState({ name: '', url: '', events: ['message.received'] });
   const [showWebhookModal, setShowWebhookModal] = useState(false);
 
+  const loadTrial = useCallback(async () => {
+    try {
+      const { data } = await authApi.trial();
+      setTrial(data);
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'webhooks') loadWebhooks();
     if (activeTab === 'team') loadTeam();
-  }, [activeTab]);
+    if (activeTab === 'plan') loadTrial();
+  }, [activeTab, loadTrial]);
 
   const loadWebhooks = async () => {
     try {
@@ -325,8 +335,12 @@ export default function SettingsPage() {
 
           {/* Plan */}
           {activeTab === 'plan' && (
-            <div className="max-w-4xl">
-              <h3 className="text-lg font-heading font-bold text-white mb-6">Seu Plano</h3>
+            <div className="max-w-4xl space-y-6">
+              <h3 className="text-lg font-heading font-bold text-white">Seu Plano</h3>
+
+              <PlanComparison trial={trial} currentPlan={user?.plan} />
+
+              <h4 className="text-lg font-heading font-bold text-white">Fazer Upgrade</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
                 {[
                   { id: 'STARTER', name: 'IA Starter', price: '97', period: '/mês', features: ['1 Número conectado', '5 atendentes', 'CRM Kanban (2 quadros)', '15.000 Webhooks', '5M Tokens de IA'], current: user?.plan === 'STARTER' || user?.plan === 'FREE', popular: false },

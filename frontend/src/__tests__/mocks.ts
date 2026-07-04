@@ -9,7 +9,7 @@ const ALL_ICONS = [
   'ArrowRight', 'ArrowUpRight', 'BarChart3', 'Bell', 'BookOpen', 'Bot',
   'BotMessageSquare', 'Brain', 'Building', 'Check', 'CheckCheck', 'CheckCircle',
   'CheckCircle2', 'ChevronDown', 'ChevronLeft', 'ChevronRight', 'ChevronUp',
-  'Clock', 'Columns3', 'Copy', 'CreditCard', 'DollarSign', 'Download',
+  'Clock', 'Columns', 'Columns3', 'Copy', 'CreditCard', 'Crown', 'DollarSign', 'Download',
   'Edit3', 'ExternalLink', 'Eye', 'EyeOff', 'FileText', 'Filter', 'GitBranch',
   'Globe', 'GripVertical', 'HelpCircle', 'Image', 'Key', 'LayoutDashboard',
   'Loader2', 'LogOut', 'Mail', 'Menu', 'MessageSquare', 'MessagesSquare',

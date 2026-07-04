@@ -97,10 +97,10 @@ export default function TrialBanner() {
                   ? `⚠️ Apenas ${trial.daysRemaining} ${trial.daysRemaining === 1 ? 'dia' : 'dias'} restantes no teste grátis`
                   : `🎉 Você tem ${trial.daysRemaining} dias de teste grátis`}
               </p>
-              <p className="text-xs text-dark-400 truncate">
+              <p className="text-xs text-dark-400">
                 {isUrgent
-                  ? 'Faça upgrade para não perder o acesso aos recursos'
-                  : 'Aproveite todos os recursos sem compromisso'}
+                  ? '⚠️ Faça upgrade para não perder o acesso — 1 número, 3 flows, 1 CRM board'
+                  : '1 número WhatsApp · 3 flows automáticos · 1 CRM board · Campanhas liberadas no Pro'}
               </p>
             </div>
           </div>

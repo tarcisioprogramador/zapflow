@@ -183,6 +183,179 @@
 [data-theme="light"] a.text-dark-400 { color: var(--text-muted); }
 [data-theme="light"] a.text-dark-400:hover { color: var(--text-primary); }
 
+/* ─── Scroll Reveal Animations ────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+.reveal-delay-4 { transition-delay: 0.4s; }
+
+/* ─── Chat Bubble Animations ──────────────────────── */
+.chat-bubble {
+  animation: messagePop 0.4s ease-out forwards;
+  opacity: 0;
+}
+
+.chat-bubble:nth-child(1) { animation-delay: 0.2s; }
+.chat-bubble:nth-child(2) { animation-delay: 0.6s; }
+.chat-bubble:nth-child(3) { animation-delay: 1s; }
+
+@keyframes messagePop {
+  0% { opacity: 0; transform: scale(0.8) translateY(10px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ─── Typing Indicator ─────────────────────────────── */
+.typing-dot {
+  animation: typingDot 1.4s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typingDot {
+  0%, 60%, 100% { opacity: 0.2; transform: translateY(0px); }
+  30% { opacity: 1; transform: translateY(-4px); }
+}
+
+/* ─── Floating Particles ───────────────────────────── */
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50% { transform: translateY(-20px) scale(1.05); }
+}
+
+/* ─── Card Hover Effects ──────────────────────────── */
+.feature-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  border-color: #25D36640;
+}
+
+.feature-card:hover .feature-icon {
+  transform: scale(1.1) rotate(-5deg);
+}
+
+.feature-icon {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Pricing Card Glow ───────────────────────────── */
+.pricing-card-popular {
+  position: relative;
+  overflow: hidden;
+}
+
+.pricing-card-popular::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(37, 211, 102, 0.05), transparent);
+  animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* ─── Glow Button ──────────────────────────────────── */
+.btn-glow {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-glow::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(37, 211, 102, 0.2) 0%, transparent 60%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.btn-glow:hover::after {
+  opacity: 1;
+}
+
+/* ─── Section Divider ─────────────────────────────── */
+.section-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(37, 211, 102, 0.2), transparent);
+  margin: 0 auto;
+  max-width: 80%;
+}
+
+/* ─── Gradient Border Card ────────────────────────── */
+.gradient-border-card {
+  position: relative;
+  background: linear-gradient(135deg, rgba(37, 211, 102, 0.05), rgba(76, 110, 245, 0.05));
+}
+
+.gradient-border-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, #25D366, #4c6ef5, #25D366);
+  background-size: 200% 200%;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: gradientShift 4s ease infinite;
+}
+
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* ─── Number Counter ───────────────────────────────── */
+.counter-number {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Responsive Tweaks ────────────────────────────── */
+@media (max-width: 768px) {
+  .reveal {
+    transform: translateY(20px);
+  }
+}
+
+/* ─── Smooth Scroll ────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+}
+
 @layer components {
   .glass {
     @apply bg-dark-800/50 backdrop-blur-xl border border-dark-700/50;

@@ -55,6 +55,16 @@ export default {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'bounce-subtle': 'bounceSubtle 0.5s ease-out',
         'float': 'float 3s ease-in-out infinite',
+        'float-delayed': 'float 3s ease-in-out 1.5s infinite',
+        'typing-dot': 'typingDot 1.4s ease-in-out infinite',
+        'typing-dot-2': 'typingDot 1.4s ease-in-out 0.2s infinite',
+        'typing-dot-3': 'typingDot 1.4s ease-in-out 0.4s infinite',
+        'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
+        'spin-slow': 'spin 8s linear infinite',
+        'scroll-reveal': 'scrollReveal 0.6s ease-out forwards',
+        'message-pop': 'messagePop 0.4s ease-out forwards',
+        'shimmer': 'shimmer 2s linear infinite',
+        'gradient-shift': 'gradientShift 8s ease infinite',
       },
       keyframes: {
         slideIn: {
@@ -76,6 +86,30 @@ export default {
         float: {
           '0%, 100%': { transform: 'translateY(0px)' },
           '50%': { transform: 'translateY(-10px)' },
+        },
+        typingDot: {
+          '0%, 60%, 100%': { opacity: '0.2', transform: 'translateY(0px)' },
+          '30%': { opacity: '1', transform: 'translateY(-4px)' },
+        },
+        pulseGlow: {
+          '0%, 100%': { boxShadow: '0 0 20px rgba(37, 211, 102, 0.15)' },
+          '50%': { boxShadow: '0 0 40px rgba(37, 211, 102, 0.3)' },
+        },
+        scrollReveal: {
+          '0%': { opacity: '0', transform: 'translateY(30px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        messagePop: {
+          '0%': { opacity: '0', transform: 'scale(0.8) translateY(10px)' },
+          '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
+        gradientShift: {
+          '0%, 100%': { backgroundPosition: '0% 50%' },
+          '50%': { backgroundPosition: '100% 50%' },
         },
       },
       boxShadow: {

@@ -18,7 +18,7 @@ const ALL_ICONS = [
   'Settings', 'Shield', 'ShoppingCart', 'Smartphone', 'Star', 'Sun', 'Tag',
   'Target', 'ThumbsUp', 'ToggleLeft', 'ToggleRight', 'Trash2', 'TrendingUp',
   'Upload', 'User', 'Users', 'Video', 'Webhook', 'Wifi', 'WifiOff', 'X',
-  'XCircle', 'Zap',
+  'XCircle', 'Zap', 'Sparkles', 'Radio', 'Activity', 'ArrowRight',
 ];
 
 const mockIcon = (name: string) => {

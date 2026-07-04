@@ -8,6 +8,15 @@ export interface User {
   organization?: Organization;
 }
 
+export interface TrialStatus {
+  isActive: boolean;
+  isExpired: boolean;
+  daysRemaining: number;
+  startedAt: string | null;
+  expiresAt: string | null;
+  plan: string;
+}
+
 export interface Organization {
   id: string;
   name: string;

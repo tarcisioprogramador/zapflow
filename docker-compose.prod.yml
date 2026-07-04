@@ -1,0 +1,363 @@
+# ═══════════════════════════════════════════════
+# ZapFlow — Production Docker Compose
+# ═══════════════════════════════════════════════
+#
+# Uso:
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Parar:
+#   docker compose -f docker-compose.prod.yml down
+#
+# Ver logs:
+#   docker compose -f docker-compose.prod.yml logs -f
+#
+# Reconstruir após mudanças de código:
+#   docker compose -f docker-compose.prod.yml build --pull
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# ⚠️  ANTES DE RODAR:
+#     1. Copie backend/.env.example → backend/.env e preencha TODAS
+#        as variáveis com valores reais de produção
+#     2. Gere um JWT_SECRET forte: openssl rand -base64 32
+#     3. Certifique-se de que o DNS do domínio aponte para o IP do servidor
+#     4. Configure .env com CADDY_DOMAIN (ex: app.zapflow.com) e CADDY_EMAIL
+#
+# ─── Arquitetura ──────────────────────────────
+#   Cliente → Caddy (:443 TLS) → Nginx (:80) → Backend (:3001)
+#              Caddy (:80 → redireciona para :443)
+#
+# ─── Segurança ────────────────────────────────
+# • TLS automático via Let's Encrypt (Caddy)
+# • PostgreSQL e Redis NÃO expõem portas ao host
+# • Backend roda como usuário não-root (UID 1001)
+# • Caddy com HSTS, security headers, OCSP stapling
+# • Redes segregadas: caddy (pública) e backend (interna)
+# • Health checks em TODOS os serviços
+# • Limites de recursos (CPU/memória) em todos os containers
+# • Logging com rotação para evitar disco cheio
+# • Restart: always (resume automaticamente após crash/reboot)
+# ═══════════════════════════════════════════════
+
+services:
+  # ─── Caddy (Reverse Proxy / TLS) ──────────────
+  caddy:
+    image: caddy:2-alpine
+    container_name: zapflow-caddy-prod
+    restart: always
+    ports:
+      - "80:80"       # HTTP (redireciona para HTTPS)
+      - "443:443"     # HTTPS (TLS automático)
+      - "443:443/udp" # HTTP/3 (QUIC)
+    environment:
+      - DOMAIN=${CADDY_DOMAIN:?❌ CADDY_DOMAIN is required (ex: app.zapflow.com)}
+      - CADDY_EMAIL=${CADDY_EMAIL:?❌ CADDY_EMAIL is required (ex: admin@zapflow.com)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      # caddy:2-alpine não inclui wget/curl; verificamos o binário
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: "128M"
+        reservations:
+          cpus: "0.1"
+          memory: "64M"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - caddy
+
+  # ─── PostgreSQL ──────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: zapflow-postgres-prod
+    restart: always
+    expose:
+      - "5432"
+    # ⚠️  Porta NÃO exposta ao host em produção
+    # Se precisar de acesso externo (ex: backup), descomente:
+    # ports:
+    #   - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-zapflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?❌ POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-zapflow}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zapflow} -d ${POSTGRES_DB:-zapflow}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "512M"
+        reservations:
+          cpus: "0.25"
+          memory: "256M"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - backend
+
+  # ─── Redis ──────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: zapflow-redis-prod
+    restart: always
+    expose:
+      - "6379"
+    # ⚠️  Porta NÃO exposta ao host em produção
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --auto-aof-rewrite-percentage 100
+      --auto-aof-rewrite-min-size 64mb
+      --requirepass ${REDIS_PASSWORD:?❌ REDIS_PASSWORD is required}
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256M"
+        reservations:
+          cpus: "0.1"
+          memory: "128M"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - backend
+
+  # ─── Backend ─────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    container_name: zapflow-backend-prod
+    restart: always
+    expose:
+      - "3001"
+    # ⚠️  Porta NÃO exposta diretamente ao host em produção
+    # O acesso é feito via frontend (nginx proxy reverso)
+    env_file:
+      - backend/.env
+    environment:
+      # Conexões internas via Docker network (hostname = nome do serviço)
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-zapflow}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-zapflow}?schema=public&ssl=false"
+      REDIS_URL: "redis://default:${REDIS_PASSWORD}@redis:6379"
+      NODE_ENV: "production"
+      PORT: "3001"
+      # FRONTEND_URL deve ser o domínio público (ex: https://app.zapflow.com)
+      FRONTEND_URL: ${FRONTEND_URL:?❌ FRONTEND_URL is required (ex: https://app.zapflow.com)}
+      # BACKEND_URL pode ser interno se Evolution API estiver na mesma Docker network
+      BACKEND_URL: ${BACKEND_URL:-http://backend:3001}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -f http://localhost:3001/api/health || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "1G"
+        reservations:
+          cpus: "0.5"
+          memory: "512M"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - backend
+
+  # ─── Database Backup ──────────────────────────
+  # Executa pg_dump automático diariamente com compressão,
+  # rotação de backups antigos e upload opcional para S3.
+  db-backup:
+    image: postgres:16-alpine
+    container_name: zapflow-db-backup-prod
+    restart: always
+    # ⚠️  Necessita acesso ao PostgreSQL e, opcionalmente, à internet (S3)
+    #     Se a rede backend for internal: true, o S3 não funcionará.
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-zapflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?❌ POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-zapflow}
+      BACKUP_DIR: /backups
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_SCHEDULE_HOUR: ${BACKUP_SCHEDULE_HOUR:-3}
+      BACKUP_SCHEDULE_MINUTE: ${BACKUP_SCHEDULE_MINUTE:-0}
+      # S3 (opcional — comentado até configurar)
+      # BACKUP_PLAIN_SQL: "false"
+      # BACKUP_S3_ENABLED: "true"
+      # S3_BUCKET: ${S3_BUCKET:-zapflow-backups}
+      # S3_ENDPOINT: ${S3_ENDPOINT:-}
+      # S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      # S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+      # BACKUP_NOTIFY_WEBHOOK: ${BACKUP_NOTIFY_WEBHOOK:-}
+    volumes:
+      - db_backups:/backups
+      - ./scripts/backup-db.sh:/usr/local/bin/backup.sh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apk add --no-cache curl 2>/dev/null || true
+        chmod +x /usr/local/bin/backup.sh
+        exec /usr/local/bin/backup.sh
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # Verifica se há um backup recente (≤ 48h) via symlink latest.dump
+      test:
+        [
+          "CMD-SHELL",
+          "test -f /backups/latest.dump && test $$(($$(date +%s) - $$(stat -c '%Y' /backups/latest.dump 2>/dev/null || stat -f '%m' /backups/latest.dump 2>/dev/null || echo 0))) -lt 172800 || exit 1",
+        ]
+      # 172800s = 48h — se não houver backup recente em 2 dias, unhealthy
+      interval: 1h
+      timeout: 10s
+      retries: 3
+      start_period: 2h  # Dá tempo para o primeiro backup ser executado
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256M"
+        reservations:
+          cpus: "0.1"
+          memory: "128M"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - backend
+
+  # ─── Frontend (nginx — acessado via Caddy) ────
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    container_name: zapflow-frontend-prod
+    restart: always
+    # ⚠️  Porta NÃO exposta ao host — tráfego vem via Caddy
+    expose:
+      - "80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "test -f /var/run/nginx.pid",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256M"
+        reservations:
+          cpus: "0.1"
+          memory: "128M"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - caddy
+      - backend
+
+# ─── Volumes ──────────────────────────────────
+volumes:
+  pgdata:
+    driver: local
+    # Para backups em produção, considere um driver de volume com snapshot:
+    # driver: cloudstor:aws
+    # driver_opts:
+    #   type: efs
+    #   device: fs-xxxxxx:/pgdata
+    #   o: tls
+  redisdata:
+    driver: local
+
+# ─── Volumes (Caddy certificados) ────────────
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+
+# ─── Networks ─────────────────────────────────
+networks:
+  caddy:
+    name: zapflow-caddy
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: zapflow-caddy
+  backend:
+    name: zapflow-backend
+    driver: bridge
+    internal: true
+    # ⚠️  internal: true — NÃO tem acesso à internet!
+    # Isso é seguro, mas significa que:
+    # - O backend NÃO consegue baixar pacotes npm
+    # - O backend NÃO consegue acessar APIs externas (Evolution API, Stripe, OpenAI)
+    # Se precisar de acesso externo do backend, mude para:
+    # driver: bridge
+    # ou adicione um proxy de saída.
+    #
+    # Para a maioria dos casos, use internal: false ou comente esta linha:
+    # internal: true
+    driver_opts:
+      com.docker.network.bridge.name: zapflow-be

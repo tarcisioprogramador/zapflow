@@ -1,0 +1,143 @@
+# ═══════════════════════════════════════════════════════════
+# ZapFlow — Caddy Reverse Proxy Configuration
+# ═══════════════════════════════════════════════════════════
+# 
+# Caddy obtém certificados TLS automaticamente do Let's Encrypt
+# e gerencia renovações sem intervenção manual.
+#
+# Variáveis preenchidas pelo Docker Compose (${DOMAIN}, ${CADDY_EMAIL}).
+#
+# Arquitetura:
+#   Cliente → Caddy (:443 TLS) → Nginx (:80) → Backend (:3001)
+#              Caddy (:80 redireciona para :443)
+#
+# Para testar localmente com HTTP (sem TLS):
+#   docker compose -f docker-compose.prod.yml run --rm caddy caddy run --config /etc/caddy/Caddyfile
+#
+# Para produção: certifique-se de que o DNS do domínio aponte para o IP do servidor.
+# ═══════════════════════════════════════════════════════════
+
+# ─── Global Options ─────────────────────────────
+{
+  # Email para Let's Encrypt (notificações de expiração de certificado)
+  email {$CADDY_EMAIL}
+
+  # Storage para certificados (volume Docker montado)
+  storage file /data/caddy
+
+  # Manter logs de acesso por 7 dias
+  # (opcional: descomente para habilitar)
+  # persist_state /data/caddy/state.json
+
+  # OCSP stapling para melhor performance TLS
+  ocsp_stapling on
+}
+
+# ─── Domínio Principal ─────────────────────────
+{$DOMAIN:localhost} {
+  # ─── Logs de Acesso ──────────────────────────
+  log {
+    output file /data/caddy/access.log {
+      roll_size 10mb
+      roll_keep 5
+      roll_keep_for 720h  # 30 dias
+    }
+    format json
+  }
+
+  # ─── Security Headers ─────────────────────────
+  header {
+    # Security
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    X-XSS-Protection "1; mode=block"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # HSTS (6 meses, inclui subdomínios, preload)
+    Strict-Transport-Security "max-age=15768000; includeSubDomains; preload"
+    
+    # Permissions Policy (restringe APIs do navegador)
+    Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+    
+    # Content Security Policy (ajuste conforme necessário)
+    # Content-Security-Policy "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: wss:; img-src 'self' data: blob: https:; media-src 'self' https:; connect-src 'self' https: wss:; font-src 'self' data:;"
+    
+    # Remove header de servidor
+    -Server
+  }
+
+  # ─── Compressão Gzip/Brotli ──────────────────
+  encode {
+    gzip
+    zstd
+  }
+
+  # ─── Rate Limiting (opcional) ─────────────────
+  # rate_limit {
+  #   zone dynamic {
+  #     key {remote_host}
+  #     events 100
+  #     window 1m
+  #   }
+  # }
+
+  # ─── Proxy para Nginx ────────────────────────
+  reverse_proxy frontend:80 {
+    # Health check
+    health_uri /
+    health_port 80
+    health_interval 30s
+    health_timeout 5s
+
+    # Headers para informar o backend sobre a requisição original
+    header_up X-Forwarded-Proto {scheme}
+    header_up X-Forwarded-Host {host}
+    header_up X-Forwarded-For {remote_host}
+    header_up X-Real-IP {remote_host}
+    
+    # Timeouts
+    transport http {
+      read_timeout 60s
+      write_timeout 60s
+      dial_timeout 10s
+    }
+  }
+
+  # ─── WebSocket (passa direto para o backend) ──
+  @websocket {
+    path /socket.io/*
+  }
+  reverse_proxy @websocket frontend:80 {
+    header_up X-Forwarded-Proto {scheme}
+    header_up X-Forwarded-Host {host}
+    header_up X-Forwarded-For {remote_host}
+    header_up X-Real-IP {remote_host}
+    
+    transport http {
+      read_timeout 300s
+      write_timeout 300s
+    }
+  }
+
+  # ─── Handle File Uploads ─────────────────────
+  @uploads {
+    path /api/*/upload /api/uploads/*
+  }
+  reverse_proxy @uploads frontend:80 {
+    header_up X-Forwarded-Proto {scheme}
+    header_up X-Forwarded-Host {host}
+    header_up X-Forwarded-For {remote_host}
+    header_up X-Real-IP {remote_host}
+    
+    transport http {
+      read_timeout 120s
+      write_timeout 120s
+    }
+  }
+}
+
+# ─── Redirecionamento HTTP → HTTPS ────────────
+# ❌ NÃO é necessário — Caddy faz isso automaticamente.
+#    Um bloco explícito http://{$DOMAIN} { redir ... } causaria
+#    problemas com localhost (certificado auto-assinado) e é
+#    redundante com o comportamento padrão do Caddy.

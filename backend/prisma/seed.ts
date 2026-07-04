@@ -14,7 +14,7 @@ async function main() {
     },
   });
 
-  // Create demo user
+  // Create demo user (PRO plan — no trial expiration)
   const hashedPassword = await bcrypt.hash('123456', 12);
   const user = await prisma.user.create({
     data: {
@@ -24,17 +24,22 @@ async function main() {
       role: 'OWNER',
       plan: 'PRO',
       organizationId: org.id,
+      trialStartedAt: new Date(),
+      trialExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     },
   });
 
-  // Create second user (attendant)
+  // Create second user (attendant — FREE plan with trial)
   await prisma.user.create({
     data: {
       name: 'Atendente 1',
       email: 'atendente@zapflow.com',
       password: hashedPassword,
       role: 'ATTENDANT',
+      plan: 'FREE',
       organizationId: org.id,
+      trialStartedAt: new Date(),
+      trialExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     },
   });
 

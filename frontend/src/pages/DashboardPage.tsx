@@ -1,16 +1,41 @@
-import { useEffect, useState } from 'react';
-import { dashboardApi } from '../api';
-import { DashboardMetrics, Message } from '../types';
+import { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { dashboardApi, authApi } from '../api';
+import { DashboardMetrics, TrialStatus } from '../types';
 import {
   MessageSquare, Users, GitBranch, Send, TrendingUp, ArrowUpRight,
-  ArrowDownRight, Zap, BarChart3, Activity, Clock,
+  ArrowDownRight, Zap, BarChart3, Activity, Clock, AlertTriangle,
+  RefreshCw, Crown,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area,
 } from 'recharts';
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+// ─── Demo data fallback ──────────────────────────
+const DEMO_METRICS: DashboardMetrics = {
+  totalMessages: 2847,
+  activeConversations: 42,
+  totalContacts: 1253,
+  activeFlows: 8,
+  totalCampaigns: 15,
+  conversionRate: 23.5,
+  messagesPerDay: [
+    { date: 'Seg', count: 320 }, { date: 'Ter', count: 445 },
+    { date: 'Qua', count: 380 }, { date: 'Qui', count: 510 },
+    { date: 'Sex', count: 490 }, { date: 'Sáb', count: 280 },
+    { date: 'Dom', count: 190 },
+  ],
+  pipelineData: [
+    { stage: 'Lead', count: 145, value: 72500 },
+    { stage: 'Contato', count: 89, value: 44500 },
+    { stage: 'Proposta', count: 34, value: 27200 },
+    { stage: 'Fechado', count: 18, value: 21600 },
+  ],
+};
+
+// ─── Custom Tooltip ─────────────────────────────
+const ChartTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="glass-card px-3 py-2 text-xs">
@@ -20,84 +45,144 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+// ─── Stat Card ──────────────────────────────────
+function StatCard({ stat }: { stat: any }) {
+  if (!stat) return null;
+  return (
+    <div className="stat-card group">
+      <div className="flex items-start justify-between mb-3">
+        <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center`}>
+          <stat.icon className={`w-5 h-5 ${stat.color}`} />
+        </div>
+        <span
+          className={`flex items-center gap-0.5 text-xs font-semibold ${
+            stat.up ? 'text-emerald-400' : 'text-red-400'
+          }`}
+        >
+          {stat.up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+          {stat.change}
+        </span>
+      </div>
+      <p className="text-2xl font-heading font-bold text-white">{stat.value}</p>
+      <p className="text-sm text-dark-400 mt-1">{stat.label}</p>
+    </div>
+  );
+}
+
+// ─── Trial Expired Overlay ───────────────────────
+function TrialExpiredOverlay({ trial }: { trial: TrialStatus }) {
+  if (!trial.isExpired) return null;
+
+  return (
+    <div className="glass-card p-8 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+        <AlertTriangle className="w-8 h-8 text-red-400" />
+      </div>
+      <h2 className="text-xl font-heading font-bold text-white mb-2">
+        Teste Gratuito Expirado
+      </h2>
+      <p className="text-dark-400 mb-6 max-w-md mx-auto">
+        Seu período de avaliação gratuita terminou. Faça upgrade para continuar
+        usando todos os recursos do ZapFlow.
+      </p>
+      <Link
+        to="/settings"
+        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-zap-500 to-brand-600 text-white font-medium hover:from-zap-400 hover:to-brand-500 transition-all duration-200 shadow-lg shadow-zap-500/20"
+      >
+        <Crown className="w-5 h-5" />
+        Ver Planos e Preços
+      </Link>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════
+// ─── Dashboard Page ──────────────────────────────
+// ═══════════════════════════════════════════════════
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [trial, setTrial] = useState<TrialStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadMetrics();
-  }, []);
-
-  const loadMetrics = async () => {
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const { data } = await dashboardApi.metrics();
-      setMetrics(data);
+      const [metricsRes, trialRes] = await Promise.allSettled([
+        dashboardApi.metrics(),
+        authApi.trial(),
+      ]);
+
+      if (metricsRes.status === 'fulfilled') {
+        setMetrics(metricsRes.value.data);
+      } else {
+        // Fallback to demo data on error
+        setMetrics(DEMO_METRICS);
+      }
+
+      if (trialRes.status === 'fulfilled') {
+        setTrial(trialRes.value.data);
+      }
     } catch {
-      // Use demo data
-      setMetrics({
-        totalMessages: 2847,
-        activeConversations: 42,
-        totalContacts: 1253,
-        activeFlows: 8,
-        totalCampaigns: 15,
-        conversionRate: 23.5,
-        messagesPerDay: [
-          { date: 'Seg', count: 320 }, { date: 'Ter', count: 445 },
-          { date: 'Qua', count: 380 }, { date: 'Qui', count: 510 },
-          { date: 'Sex', count: 490 }, { date: 'Sáb', count: 280 },
-          { date: 'Dom', count: 190 },
-        ],
-        pipelineData: [
-          { stage: 'Lead', count: 145, value: 72500 },
-          { stage: 'Contato', count: 89, value: 44500 },
-          { stage: 'Proposta', count: 34, value: 27200 },
-          { stage: 'Fechado', count: 18, value: 21600 },
-        ],
-      });
+      setMetrics(DEMO_METRICS);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const stats = metrics
-    ? [
-        { label: 'Mensagens', value: metrics.totalMessages.toLocaleString(), icon: MessageSquare, change: '+12%', up: true, color: 'text-zap-400', bg: 'bg-zap-500/10' },
-        { label: 'Conversas Ativas', value: metrics.activeConversations, icon: Activity, change: '+5%', up: true, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-        { label: 'Contatos', value: metrics.totalContacts.toLocaleString(), icon: Users, change: '+18%', up: true, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-        { label: 'Conversão', value: `${metrics.conversionRate}%`, icon: TrendingUp, change: '+3.2%', up: true, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-      ]
-    : [];
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
+  // ─── Loading state ──────────────────────────
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="w-8 h-8 border-2 border-zap-500/30 border-t-zap-500 rounded-full animate-spin" />
+      <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <div className="w-10 h-10 border-2 border-zap-500/30 border-t-zap-500 rounded-full animate-spin" />
+        <p className="text-sm text-dark-400">Carregando dashboard...</p>
       </div>
     );
   }
 
+  // ─── Error state (no data at all) ────────────
+  if (error && !metrics) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <AlertTriangle className="w-10 h-10 text-red-400" />
+        <p className="text-dark-400">{error}</p>
+        <button
+          onClick={loadData}
+          className="btn-secondary flex items-center gap-2"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
+
+  // ─── Stats cards ─────────────────────────────
+  const stats = metrics
+    ? [
+        { label: 'Mensagens', value: metrics.totalMessages?.toLocaleString() || '0', icon: MessageSquare, change: '+12%', up: true, color: 'text-zap-400', bg: 'bg-zap-500/10' },
+        { label: 'Conversas Ativas', value: metrics.activeConversations ?? 0, icon: Activity, change: '+5%', up: true, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+        { label: 'Contatos', value: metrics.totalContacts?.toLocaleString() || '0', icon: Users, change: '+18%', up: true, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+        { label: 'Conversão', value: metrics.conversionRate != null ? `${metrics.conversionRate}%` : '0%', icon: TrendingUp, change: '+3.2%', up: true, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+      ]
+    : [];
+
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Stats Grid */}
+      {/* Trial Expired Banner (full page) */}
+      {trial?.isExpired && (
+        <TrialExpiredOverlay trial={trial} />
+      )}
+
+      {/* Stats Grid — always visible even if trial expired */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (
-          <div key={stat.label} className="stat-card group">
-            <div className="flex items-start justify-between mb-3">
-              <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center`}>
-                <stat.icon className={`w-5 h-5 ${stat.color}`} />
-              </div>
-              <span
-                className={`flex items-center gap-0.5 text-xs font-semibold ${
-                  stat.up ? 'text-emerald-400' : 'text-red-400'
-                }`}
-              >
-                {stat.up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                {stat.change}
-              </span>
-            </div>
-            <p className="text-2xl font-heading font-bold text-white">{stat.value}</p>
-            <p className="text-sm text-dark-400 mt-1">{stat.label}</p>
-          </div>
+          <StatCard key={stat.label} stat={stat} />
         ))}
       </div>
 
@@ -112,21 +197,27 @@ export default function DashboardPage() {
             </div>
             <BarChart3 className="w-5 h-5 text-dark-500" />
           </div>
-          <ResponsiveContainer width="100%" height={250}>
-            <AreaChart data={metrics?.messagesPerDay || []}>
-              <defs>
-                <linearGradient id="colorMsg" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#25D366" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#25D366" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
-              <YAxis stroke="#64748b" fontSize={12} />
-              <Tooltip content={<CustomTooltip />} />
-              <Area type="monotone" dataKey="count" stroke="#25D366" strokeWidth={2} fill="url(#colorMsg)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          {(metrics?.messagesPerDay?.length ?? 0) > 0 ? (
+            <ResponsiveContainer width="100%" height={250}>
+              <AreaChart data={metrics!.messagesPerDay}>
+                <defs>
+                  <linearGradient id="colorMsg" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#25D366" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#25D366" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="date" stroke="#64748b" fontSize={12} />
+                <YAxis stroke="#64748b" fontSize={12} />
+                <Tooltip content={<ChartTooltip />} />
+                <Area type="monotone" dataKey="count" stroke="#25D366" strokeWidth={2} fill="url(#colorMsg)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[250px] text-dark-500 text-sm">
+              Nenhum dado de mensagens disponível
+            </div>
+          )}
         </div>
 
         {/* Pipeline Chart */}
@@ -138,18 +229,24 @@ export default function DashboardPage() {
             </div>
             <TrendingUp className="w-5 h-5 text-dark-500" />
           </div>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={metrics?.pipelineData || []}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="stage" stroke="#64748b" fontSize={12} />
-              <YAxis stroke="#64748b" fontSize={12} />
-              <Tooltip
-                contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
-                itemStyle={{ color: '#e2e8f0' }}
-              />
-              <Bar dataKey="count" fill="#4c6ef5" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {(metrics?.pipelineData?.length ?? 0) > 0 ? (
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={metrics!.pipelineData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="stage" stroke="#64748b" fontSize={12} />
+                <YAxis stroke="#64748b" fontSize={12} />
+                <Tooltip
+                  contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
+                  itemStyle={{ color: '#e2e8f0' }}
+                />
+                <Bar dataKey="count" fill="#4c6ef5" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[250px] text-dark-500 text-sm">
+              Nenhum dado de pipeline disponível
+            </div>
+          )}
         </div>
       </div>
 
@@ -160,8 +257,8 @@ export default function DashboardPage() {
           <h3 className="text-lg font-heading font-bold text-white mb-4">Resumo</h3>
           <div className="space-y-4">
             {[
-              { label: 'Flows Ativos', value: metrics?.activeFlows || 0, icon: GitBranch, color: 'text-purple-400' },
-              { label: 'Campanhas', value: metrics?.totalCampaigns || 0, icon: Send, color: 'text-orange-400' },
+              { label: 'Flows Ativos', value: metrics?.activeFlows ?? 0, icon: GitBranch, color: 'text-purple-400' },
+              { label: 'Campanhas', value: metrics?.totalCampaigns ?? 0, icon: Send, color: 'text-orange-400' },
               { label: 'Números Conectados', value: 2, icon: MessageSquare, color: 'text-zap-400' },
             ].map((item) => (
               <div key={item.label} className="flex items-center justify-between p-3 rounded-lg bg-dark-800/50">

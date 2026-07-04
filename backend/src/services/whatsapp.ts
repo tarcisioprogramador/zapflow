@@ -62,7 +62,7 @@ export async function createInstance(params: CreateInstanceParams): Promise<Inst
     throw new Error(`Evolution API createInstance failed: ${res.status} - ${err}`);
   }
 
-  return res.json();
+  return res.json() as Promise<InstanceInfo>;
 }
 
 /**
@@ -79,7 +79,7 @@ export async function getQRCode(instanceName: string): Promise<{ base64: string;
     throw new Error(`Evolution API getQRCode failed: ${res.status} - ${err}`);
   }
 
-  return res.json();
+  return res.json() as Promise<{ base64: string; code: string }>;
 }
 
 /**
@@ -98,7 +98,7 @@ export async function getConnectionState(instanceName: string): Promise<{
     throw new Error(`Evolution API getConnectionState failed: ${res.status} - ${err}`);
   }
 
-  return res.json();
+  return res.json() as Promise<{ instance: { connectionStatus: string } }>;
 }
 
 /**

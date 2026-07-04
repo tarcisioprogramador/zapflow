@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../config/database';
 import { AuthRequest, PLAN_LIMITS } from '../types';
+import { isUserTrialExpired } from '../services/trial';
 
 export function checkPlanLimit(resource: keyof typeof PLAN_LIMITS[string]) {
   return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
@@ -20,9 +21,25 @@ export function checkPlanLimit(resource: keyof typeof PLAN_LIMITS[string]) {
         return;
       }
 
+      // Check if trial expired — block ALL resource creation
+      const trialExpired = await isUserTrialExpired(req.user.userId);
+      if (trialExpired && (user.plan === 'FREE' || user.plan === 'STARTER')) {
+        res.status(403).json({
+          error: 'Seu período de teste gratuito expirou. Faça upgrade do plano para continuar usando.',
+          trialExpired: true,
+        });
+        return;
+      }
+
       const plan = user.organization?.plan || user.plan;
       const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.FREE;
       const limit = limits[resource];
+
+      // Skip non-numeric limits (booleans like hasAI, hasIntegrations)
+      if (typeof limit !== 'number') {
+        next();
+        return;
+      }
 
       // -1 means unlimited
       if (limit === -1) {

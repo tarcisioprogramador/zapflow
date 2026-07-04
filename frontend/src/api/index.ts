@@ -32,6 +32,7 @@ export const authApi = {
     api.post('/auth/register', data),
   me: () => api.get('/auth/me'),
   updateProfile: (data: any) => api.put('/auth/profile', data),
+  trial: () => api.get('/auth/trial'),
 };
 
 // WhatsApp

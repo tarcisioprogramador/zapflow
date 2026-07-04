@@ -148,7 +148,7 @@ export async function handleWebhookEvent(event: Stripe.Event) {
 
     case 'invoice.payment_succeeded': {
       const invoice = event.data.object as Stripe.Invoice;
-      const subscriptionId = invoice.subscription as string;
+      const subscriptionId = (invoice as any).subscription as string;
       const customerId = invoice.customer as string;
 
       if (subscriptionId) {
@@ -170,7 +170,7 @@ export async function handleWebhookEvent(event: Stripe.Event) {
 
     case 'invoice.payment_failed': {
       const failedInvoice = event.data.object as Stripe.Invoice;
-      const failedSubId = failedInvoice.subscription as string;
+      const failedSubId = (failedInvoice as any).subscription as string;
 
       if (failedSubId) {
         console.log(`[Stripe] Payment failed for subscription ${failedSubId}`);

@@ -36,7 +36,7 @@ export function authorize(...roles: string[]) {
 }
 
 export function generateToken(payload: AuthPayload): string {
-  return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  });
+  return jwt.sign(payload as object, JWT_SECRET, {
+    expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as string | number,
+  } as jwt.SignOptions);
 }

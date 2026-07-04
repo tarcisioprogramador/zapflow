@@ -1,0 +1,232 @@
+name: CI - Testes
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── Backend Tests ─────────────────────────
+  backend:
+    name: Backend (39 testes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # PostgreSQL + Redis via GitHub Actions services
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: zapflow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+        working-directory: backend
+
+      - name: Gerar Prisma Client
+        run: npx prisma generate
+        working-directory: backend
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/zapflow?schema=public"
+
+      - name: Sincronizar schema do banco
+        run: npx prisma db push --accept-data-loss
+        working-directory: backend
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/zapflow?schema=public"
+
+      - name: Popular banco com dados de demonstração
+        run: npm run db:seed
+        working-directory: backend
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/zapflow?schema=public"
+
+      - name: Verificar typescript (tsc)
+        run: npx tsc --noEmit
+        working-directory: backend
+
+      - name: Executar testes
+        run: npm test
+        working-directory: backend
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/zapflow?schema=public"
+          REDIS_URL: "redis://localhost:6379"
+          JWT_SECRET: "ci-test-secret"
+          JWT_EXPIRES_IN: "7d"
+          NODE_ENV: "test"
+
+      - name: Upload coverage report (backend)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-backend
+          path: backend/coverage/
+          retention-days: 7
+
+  # ─── Frontend Tests ────────────────────────
+  frontend:
+    name: Frontend (56 testes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+        working-directory: frontend
+
+      - name: Verificar typescript (tsc)
+        run: npx tsc --noEmit
+        working-directory: frontend
+
+      - name: Executar testes
+        run: npm test
+        working-directory: frontend
+
+      - name: Build de produção
+        run: npm run build
+        working-directory: frontend
+
+      - name: Upload coverage report (frontend)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-frontend
+          path: frontend/coverage/
+          retention-days: 7
+
+  # ─── Linting & Formatação ─────────────────
+  lint:
+    name: Verificações
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verificar setup.bat
+        run: |
+          if [ ! -f setup.bat ]; then
+            echo "❌ setup.bat não encontrado!"
+            exit 1
+          fi
+          echo "✅ setup.bat presente"
+
+      - name: Verificar setup.sh
+        run: |
+          if [ ! -f setup.sh ]; then
+            echo "❌ setup.sh não encontrado!"
+            exit 1
+          fi
+          echo "✅ setup.sh presente"
+
+      - name: Verificar .env.example
+        run: |
+          if [ ! -f backend/.env.example ]; then
+            echo "❌ backend/.env.example não encontrado!"
+            exit 1
+          fi
+          if [ ! -f frontend/.env.example ]; then
+            echo "❌ frontend/.env.example não encontrado!"
+            exit 1
+          fi
+          echo "✅ Arquivos .env.example presentes"
+
+      - name: Verificar docker-compose.yml
+        run: |
+          if [ ! -f docker-compose.yml ]; then
+            echo "❌ docker-compose.yml não encontrado!"
+            exit 1
+          fi
+          echo "✅ docker-compose.yml presente"
+
+      - name: Verificar README.md
+        run: |
+          if [ ! -f README.md ]; then
+            echo "❌ README.md não encontrado!"
+            exit 1
+          fi
+          echo "✅ README.md presente"
+
+  # ─── Resultado Final ──────────────────────
+  results:
+    name: 📋 Resultado Final
+    if: always()
+    needs: [backend, frontend, lint]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Verificar status dos jobs
+        run: |
+          BACKEND="${{ needs.backend.result }}"
+          FRONTEND="${{ needs.frontend.result }}"
+          LINT="${{ needs.lint.result }}"
+
+          echo "## ⚡ ZapFlow - CI Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Backend** (39 testes) | $BACKEND |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Frontend** (56 testes) | $FRONTEND |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Verificações** | $LINT |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$BACKEND" = "success" ] && [ "$FRONTEND" = "success" ] && [ "$LINT" = "success" ]; then
+            echo "✅ **Todos os 95 testes passaram!**" >> $GITHUB_STEP_SUMMARY
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "❌ **Algumas verificações falharam**" >> $GITHUB_STEP_SUMMARY
+            echo "status=failure" >> $GITHUB_OUTPUT
+            exit 1
+          fi

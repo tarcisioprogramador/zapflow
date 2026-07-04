@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import TrialBanner from '../TrialBanner';
 import { useAppStore } from '../../store';
 
 export default function Layout() {
@@ -14,6 +15,7 @@ export default function Layout() {
           sidebarOpen ? 'ml-64' : 'ml-20'
         }`}
       >
+        <TrialBanner />
         <Header />
         <main className="flex-1 overflow-auto p-6">
           <Outlet />

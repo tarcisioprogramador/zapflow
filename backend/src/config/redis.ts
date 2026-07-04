@@ -8,7 +8,7 @@ export const redis = new Redis(redisUrl, {
 });
 
 export const whatsappQueue = new Queue('whatsapp-messages', {
-  connection: new Redis(redisUrl, { maxRetriesPerRequest: null }),
+  connection: new Redis(redisUrl, { maxRetriesPerRequest: null }) as any,
   defaultJobOptions: {
     attempts: 3,
     backoff: { type: 'exponential', delay: 2000 },
@@ -16,7 +16,7 @@ export const whatsappQueue = new Queue('whatsapp-messages', {
 });
 
 export const campaignQueue = new Queue('campaign-messages', {
-  connection: new Redis(redisUrl, { maxRetriesPerRequest: null }),
+  connection: new Redis(redisUrl, { maxRetriesPerRequest: null }) as any,
   defaultJobOptions: {
     attempts: 2,
     backoff: { type: 'fixed', delay: 5000 },
@@ -24,5 +24,5 @@ export const campaignQueue = new Queue('campaign-messages', {
 });
 
 export const remarketingQueue = new Queue('remarketing', {
-  connection: new Redis(redisUrl, { maxRetriesPerRequest: null }),
+  connection: new Redis(redisUrl, { maxRetriesPerRequest: null }) as any,
 });

@@ -18,6 +18,9 @@ model User {
   plan          String    @default("FREE")
   avatar        String?
   phone         String?
+  // Trial system — 7-day free trial for new accounts
+  trialStartedAt DateTime?
+  trialExpiresAt DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -28,6 +31,8 @@ model User {
   contacts       Contact[]
   campaigns      Campaign[]
   flows          Flow[]
+
+  @@index([trialExpiresAt])
 }
 
 model Organization {

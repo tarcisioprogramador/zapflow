@@ -1,0 +1,119 @@
+version: "3.8"
+
+# ═══════════════════════════════════════════
+# ZapFlow - Docker Compose (Desenvolvimento)
+# ═══════════════════════════════════════════
+#
+# Uso básico (apenas PostgreSQL + Redis):
+#   docker compose up -d
+#
+# Uso completo (com backend + frontend em Docker):
+#   docker compose --profile full up -d --build
+#
+# Parar tudo:
+#   docker compose down
+#
+# Parar e remover volumes (APAGA TODOS OS DADOS):
+#   docker compose down -v
+#
+# Após iniciar PostgreSQL + Redis, rode o backend localmente:
+#   cd backend && npm run dev
+#
+# Ou o frontend localmente (com proxy do Vite):
+#   cd frontend && npm run dev
+#
+# ⚠️  O serviço "frontend" em Docker roda em modo produção (nginx).
+#     Durante o desenvolvimento, prefira usar `npm run dev` no frontend
+#     para aproveitar o HMR (Hot Module Replacement) do Vite.
+# ──────────────────────────────────────────────
+
+services:
+  # ─── PostgreSQL ──────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: zapflow-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: zapflow
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis ──────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: zapflow-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Backend ─────────────────────────────────
+  # ⚠️  Requer backend/.env (copie de backend/.env.example)
+  #     As variáveis DATABASE_URL e REDIS_URL abaixo já apontam
+  #     para os containers do Docker (hostname = nome do serviço).
+  backend:
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: zapflow-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - backend/.env
+    environment:
+      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/zapflow?schema=public"
+      REDIS_URL: "redis://redis:6379"
+      PORT: "3001"
+      NODE_ENV: "development"
+      FRONTEND_URL: "http://localhost:5173"
+      # BACKEND_URL é usada para montar URLs de webhook enviadas à Evolution API.
+      # Se a Evolution API roda fora do Docker, "localhost:3001" funciona.
+      # Se roda em outro container, troque para "http://host.docker.internal:3001"
+      # ou pelo IP da máquina host.
+      BACKEND_URL: "http://localhost:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ─── Frontend (produção - nginx) ────────────
+  # Em desenvolvimento, prefira usar:
+  #   cd frontend && npm run dev
+  # (O Vite faz proxy das chamadas /api para o backend)
+  frontend:
+    profiles: ["full"]
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    container_name: zapflow-frontend
+    restart: unless-stopped
+    # Porta 5173 pode conflitar com o dev server do Vite local.
+    # Se ambos rodarem, mude a porta aqui ou pare o dev server.
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local

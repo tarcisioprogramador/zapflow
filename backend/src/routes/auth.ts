@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import prisma from '../config/database';
 import { generateToken } from '../middleware/auth';
 import { AuthRequest } from '../types';
+import { startUserTrial, getUserTrialStatus } from '../services/trial';
 
 const router = Router();
 
@@ -39,9 +40,13 @@ router.post('/register', async (req: AuthRequest, res: Response): Promise<void> 
         email,
         password: hashedPassword,
         role: 'OWNER',
+        plan: 'FREE',
         organizationId,
       },
     });
+
+    // Start 7-day free trial for new users
+    await startUserTrial(user.id);
 
     const token = generateToken({
       userId: user.id,
@@ -148,6 +153,20 @@ router.get('/me', async (req: AuthRequest, res: Response): Promise<void> => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao buscar usuário' });
+  }
+});
+
+// GET /api/auth/trial — status do trial
+router.get('/trial', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Não autenticado' });
+      return;
+    }
+    const status = await getUserTrialStatus(req.user.userId);
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar status do trial' });
   }
 });
 

@@ -584,12 +584,23 @@ export default function SettingsPage() {
                         <AlertCircle className="w-5 h-5 text-amber-400" />
                         <span className="text-amber-400 font-semibold">Stripe não configurado</span>
                       </div>
-                      <p className="text-sm text-dark-300 mb-3">
-                        Complete os passos abaixo para ativar vendas automáticas:
+                      <p className="text-sm text-dark-300 mb-4">
+                        Complete os passos abaixo para ativar vendas automáticas com PIX, cartão e boleto:
                       </p>
 
+                      {/* CTA principal */}
+                      <a
+                        href="https://dashboard.stripe.com/register"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 bg-zap-500 hover:bg-zap-600 text-white font-bold px-6 py-3 rounded-lg transition-all shadow-lg shadow-zap-500/20 mb-6"
+                      >
+                        <ExternalLinkIcon className="w-4 h-4" />
+                        Criar Conta no Stripe
+                      </a>
+
                       {stripeStatus.envVars && (
-                        <div className="p-3 rounded-lg bg-dark-900/50 border border-dark-700/30 mb-3">
+                        <div className="p-3 rounded-lg bg-dark-900/50 border border-dark-700/30 mb-4">
                           <p className="text-xs text-emerald-400 font-semibold mb-2">✅ Produtos criados! Copie para o .env:</p>
                           {stripeStatus.envVars.map((v: string) => (
                             <code key={v} className="block text-xs font-mono text-zap-400 bg-dark-950/50 p-1.5 rounded mb-1">{v}</code>
@@ -597,29 +608,44 @@ export default function SettingsPage() {
                         </div>
                       )}
 
-                      <ol className="space-y-3 text-sm">
+                      <ol className="space-y-4 text-sm">
                         <li className="flex items-start gap-3">
                           <span className="w-6 h-6 rounded-full bg-zap-500/20 text-zap-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">1</span>
                           <div>
                             <p className="text-white font-medium">Criar conta no Stripe</p>
-                            <p className="text-dark-400 text-xs mt-0.5">Acesse <a href="https://dashboard.stripe.com/register" target="_blank" rel="noopener noreferrer" className="text-zap-400 hover:underline">dashboard.stripe.com/register</a> e crie sua conta</p>
+                            <p className="text-dark-400 text-xs mt-0.5">
+                              Clique no botão acima para criar sua conta gratuita. Leva 2 minutos.
+                            </p>
                           </div>
                         </li>
                         <li className="flex items-start gap-3">
                           <span className="w-6 h-6 rounded-full bg-zap-500/20 text-zap-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">2</span>
                           <div>
                             <p className="text-white font-medium">Copiar as chaves de API</p>
-                            <p className="text-dark-400 text-xs mt-0.5">Vá em <strong className="text-dark-200">Developers {'>'} API keys</strong> e copie a <strong className="text-dark-200">Secret Key</strong> e <strong className="text-dark-200">Publishable Key</strong></p>
-                            <p className="text-dark-400 text-xs mt-1">Adicione no <code className="text-zap-400 bg-dark-900/50 px-1 rounded">.env</code>:</p>
-                            <code className="block text-xs font-mono text-zap-400 bg-dark-950/50 p-1.5 rounded mt-1">STRIPE_SECRET_KEY=sk_test_...</code>
-                            <code className="block text-xs font-mono text-zap-400 bg-dark-950/50 p-1.5 rounded mt-1">STRIPE_PUBLISHABLE_KEY=pk_test_...</code>
+                            <p className="text-dark-400 text-xs mt-0.5">
+                              No Stripe, vá em <strong className="text-dark-200">Developers {'>'} API keys</strong> e copie:
+                            </p>
+                            <div className="mt-2 space-y-1">
+                              <code className="block text-xs font-mono text-zap-400 bg-dark-950/50 p-1.5 rounded">STRIPE_SECRET_KEY=sk_test_...</code>
+                              <code className="block text-xs font-mono text-zap-400 bg-dark-950/50 p-1.5 rounded">STRIPE_PUBLISHABLE_KEY=pk_test_...</code>
+                            </div>
                           </div>
                         </li>
                         <li className="flex items-start gap-3">
                           <span className="w-6 h-6 rounded-full bg-zap-500/20 text-zap-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">3</span>
                           <div>
-                            <p className="text-white font-medium">Criar os produtos no Stripe</p>
-                            <p className="text-dark-400 text-xs mt-0.5">Após adicionar a Secret Key no .env e reiniciar o servidor, clique no botão abaixo:</p>
+                            <p className="text-white font-medium">Configurar no Railway</p>
+                            <p className="text-dark-400 text-xs mt-0.5">
+                              Adicione as chaves como variáveis de ambiente no Railway:
+                            </p>
+                            <code className="block text-xs font-mono text-zap-400 bg-dark-950/50 p-1.5 rounded mt-2">railway variables set STRIPE_SECRET_KEY=sk_test_... STRIPE_PUBLISHABLE_KEY=pk_test_...</code>
+                          </div>
+                        </li>
+                        <li className="flex items-start gap-3">
+                          <span className="w-6 h-6 rounded-full bg-zap-500/20 text-zap-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">4</span>
+                          <div>
+                            <p className="text-white font-medium">Criar os produtos automaticamente</p>
+                            <p className="text-dark-400 text-xs mt-0.5">Após adicionar as chaves, clique aqui:</p>
                             <div className="mt-3">
                               <button
                                 onClick={handleSetupStripe}
@@ -631,16 +657,16 @@ export default function SettingsPage() {
                                 ) : (
                                   <Zap className="w-4 h-4" />
                                 )}
-                                {settingUpStripe ? 'Criando...' : 'Criar Produtos Automagicamente'}
+                                {settingUpStripe ? 'Criando...' : 'Criar Produtos Automaticamente'}
                               </button>
-                              {stripeStatus.keys?.secretKey === false && (
-                                <p className="text-xs text-amber-400 mt-1">Adicione STRIPE_SECRET_KEY no .env primeiro</p>
+                              {!stripeStatus.keys?.secretKey && (
+                                <p className="text-xs text-amber-400 mt-1">Adicione STRIPE_SECRET_KEY primeiro</p>
                               )}
                             </div>
                           </div>
                         </li>
                         <li className="flex items-start gap-3">
-                          <span className="w-6 h-6 rounded-full bg-zap-500/20 text-zap-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">4</span>
+                          <span className="w-6 h-6 rounded-full bg-zap-500/20 text-zap-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">5</span>
                           <div>
                             <p className="text-white font-medium">Configurar Webhook</p>
                             <p className="text-dark-400 text-xs mt-0.5">
@@ -650,11 +676,27 @@ export default function SettingsPage() {
                               URL: <code className="text-zap-400 bg-dark-900/50 px-1 rounded">{window.location.origin}/api/webhook/stripe</code>
                             </p>
                             <p className="text-dark-400 text-xs mt-1">
-                              Eventos: <code className="text-dark-300 bg-dark-900/50 px-1 rounded">checkout.session.completed</code>, <code className="text-dark-300 bg-dark-900/50 px-1 rounded">invoice.payment_succeeded</code>, <code className="text-dark-300 bg-dark-900/50 px-1 rounded">customer.subscription.deleted</code>
+                              Eventos: <code className="text-dark-300 bg-dark-900/50 px-1 rounded">checkout.session.completed</code>,{' '}
+                              <code className="text-dark-300 bg-dark-900/50 px-1 rounded">invoice.payment_succeeded</code>,{' '}
+                              <code className="text-dark-300 bg-dark-900/50 px-1 rounded">customer.subscription.deleted</code>
                             </p>
                           </div>
                         </li>
                       </ol>
+
+                      <div className="mt-6 p-4 rounded-lg bg-zap-500/5 border border-zap-500/20">
+                        <p className="text-sm text-zap-400 font-medium mb-1">💡 PIX, Cartão e Boleto já configurados no código!</p>
+                        <p className="text-xs text-dark-300">
+                          O Stripe já está configurado para aceitar <strong className="text-white">PIX</strong> (pagamento instantâneo), 
+                          cartão de crédito e boleto bancário. Ao ativar sua conta Stripe, lembre-se de:
+                        </p>
+                        <p className="text-xs text-dark-400 mt-2">
+                          • Ir em <strong className="text-dark-200">Stripe Dashboard → Settings → Payment methods</strong><br />
+                          • Ativar <strong className="text-white">PIX</strong> (buscar por "PIX" e clicar em "Activate")<br />
+                          • Ativar <strong className="text-white">Boleto</strong> se desejar<br />
+                          • Pronto! Seus clientes poderão pagar via PIX, cartão ou boleto.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}

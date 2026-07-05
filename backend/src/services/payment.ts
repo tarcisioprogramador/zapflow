@@ -206,7 +206,7 @@ export async function createCheckoutSession(params: {
 
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
-    payment_method_types: ['card', 'boleto'],
+    payment_method_types: ['card', 'boleto', 'pix'],
     line_items: [
       {
         price: plan.priceId,

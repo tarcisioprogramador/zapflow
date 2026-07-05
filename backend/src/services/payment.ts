@@ -7,14 +7,21 @@ import Stripe from 'stripe';
 import prisma from '../config/database';
 
 const stripeKey = process.env.STRIPE_SECRET_KEY || '';
-export const stripe = stripeKey ? new Stripe(stripeKey) : null;
+export const stripe: Stripe | null = stripeKey ? new Stripe(stripeKey) : null;
 
 export const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || '';
 export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+interface PlanConfig {
+  priceId: string;
+  name: string;
+  amount: number;
+}
+
 // Plan configuration: maps plan IDs to Stripe Price IDs
 // These must be created in the Stripe Dashboard first
-const PLANS: Record<string, { priceId: string; name: string; amount: number }> = {
+const PLANS: Record<string, PlanConfig> = {
   STARTER: {
     priceId: process.env.STRIPE_PRICE_STARTER || '',
     name: 'IA Starter',
@@ -25,13 +32,161 @@ const PLANS: Record<string, { priceId: string; name: string; amount: number }> =
     name: 'IA Pro',
     amount: 19700, // R$ 197,00
   },
+  ENTERPRISE: {
+    priceId: process.env.STRIPE_PRICE_ENTERPRISE || '',
+    name: 'Enterprise',
+    amount: 49700, // R$ 497,00
+  },
 };
+
+/**
+ * Check Stripe configuration status
+ */
+export function getStripeStatus() {
+  const hasSecretKey = !!process.env.STRIPE_SECRET_KEY;
+  const hasPublishableKey = !!process.env.STRIPE_PUBLISHABLE_KEY;
+  const hasWebhookSecret = !!process.env.STRIPE_WEBHOOK_SECRET;
+  const hasStarterPrice = !!process.env.STRIPE_PRICE_STARTER;
+  const hasProPrice = !!process.env.STRIPE_PRICE_PRO;
+  const hasEnterprisePrice = !!process.env.STRIPE_PRICE_ENTERPRISE;
+
+  const isConfigured = hasSecretKey && hasPublishableKey && hasStarterPrice && hasProPrice && hasEnterprisePrice;
+  const canCheckout = isConfigured;
+
+  return {
+    configured: isConfigured,
+    canCheckout,
+    keys: {
+      secretKey: hasSecretKey,
+      publishableKey: hasPublishableKey,
+      webhookSecret: hasWebhookSecret,
+      starterPrice: hasStarterPrice,
+      proPrice: hasProPrice,
+      enterprisePrice: hasEnterprisePrice,
+    },
+    missingKeys: [
+      !hasSecretKey && 'STRIPE_SECRET_KEY',
+      !hasPublishableKey && 'STRIPE_PUBLISHABLE_KEY',
+      !hasWebhookSecret && 'STRIPE_WEBHOOK_SECRET',
+      !hasStarterPrice && 'STRIPE_PRICE_STARTER',
+      !hasProPrice && 'STRIPE_PRICE_PRO',
+      !hasEnterprisePrice && 'STRIPE_PRICE_ENTERPRISE',
+    ].filter(Boolean),
+    nextStep: !hasSecretKey
+      ? 'Criar conta Stripe e copiar Secret Key'
+      : !hasStarterPrice
+        ? 'Rodar setup de produtos (POST /api/payments/setup-products)'
+        : !hasWebhookSecret
+          ? 'Configurar webhook no Stripe Dashboard'
+          : 'Pronto para vender!',
+  };
+}
+
+/**
+ * Create Stripe products and prices automatically
+ */
+export async function setupStripeProducts() {
+  if (!stripe) {
+    throw new Error('Stripe não configurado. Adicione STRIPE_SECRET_KEY no .env primeiro.');
+  }
+
+  const plans = [
+    {
+      id: 'zapflow-starter',
+      name: 'IA Starter',
+      description: 'Para quem está começando a automatizar o WhatsApp',
+      amount: 9700,
+      features: [
+        '1 Número conectado', '5 Atendentes no chat', 'CRM Kanban (2 quadros)',
+        '10 Fluxos automáticos', '5 Campanhas em massa', '15.000 Webhooks', '5M Tokens de IA',
+      ],
+    },
+    {
+      id: 'zapflow-pro',
+      name: 'IA Pro',
+      description: 'Para empresas que querem escalar com IA',
+      amount: 19700,
+      features: [
+        '1 Número conectado', 'Atendentes ilimitados', 'CRM Kanban (5 quadros)',
+        'Fluxos ilimitados', 'Campanhas ilimitadas', '30.000 Webhooks',
+        '10M Tokens de IA', 'IA Megan (Auto Reply 24h)', 'Integrações Post/Put/Get',
+      ],
+    },
+    {
+      id: 'zapflow-enterprise',
+      name: 'Enterprise',
+      description: 'Para grandes operações que exigem o máximo de performance',
+      amount: 49700,
+      features: [
+        'Números ilimitados', 'Atendentes ilimitados', 'CRM Kanban ilimitado',
+        'Fluxos ilimitados', 'Campanhas ilimitadas', 'Webhooks ilimitados',
+        '20M Tokens de IA', 'IA Megan (Auto Reply 24h)', 'Integrações Post/Put/Get',
+        'Suporte prioritário 24h', 'SLA 99.9%', 'Onboarding dedicado',
+      ],
+    },
+  ];
+
+  const results: Array<{ plan: string; planId: string; priceId: string }> = [];
+
+  for (const plan of plans) {
+    // Check if product already exists
+    const existingProducts = await stripe.products.search({
+      query: `metadata['app_id']:'${plan.id}'`,
+    });
+
+    let product;
+    if (existingProducts.data.length > 0) {
+      product = existingProducts.data[0];
+    } else {
+      product = await stripe.products.create({
+        name: plan.name,
+        description: plan.description,
+        metadata: {
+          app_id: plan.id,
+          features: JSON.stringify(plan.features),
+        },
+      });
+    }
+
+    // Check if price already exists
+    const existingPrices = await stripe.prices.list({
+      product: product.id,
+      active: true,
+      limit: 10,
+    });
+
+    const existingMonthlyPrice = existingPrices.data.find(
+      (p) => p.recurring?.interval === 'month'
+    );
+
+    let price;
+    if (existingMonthlyPrice) {
+      price = existingMonthlyPrice;
+    } else {
+      price = await stripe.prices.create({
+        product: product.id,
+        unit_amount: plan.amount,
+        currency: 'brl',
+        recurring: { interval: 'month' },
+        metadata: { app_id: plan.id },
+      });
+    }
+
+    results.push({
+      plan: plan.name,
+      planId: plan.id.replace('zapflow-', '').toUpperCase(),
+      priceId: price.id,
+    });
+  }
+
+  return results;
+}
 
 /**
  * Create a Stripe Checkout Session for subscription
  */
 export async function createCheckoutSession(params: {
-  plan: 'STARTER' | 'PRO';
+  plan: 'STARTER' | 'PRO' | 'ENTERPRISE';
   customerEmail: string;
   userId: string;
   organizationId: string;
@@ -107,6 +262,44 @@ export async function getCheckoutSession(sessionId: string) {
 }
 
 /**
+ * Record a payment transaction in the database
+ */
+export async function recordPayment(params: {
+  organizationId: string;
+  stripePaymentIntentId?: string | null;
+  stripeInvoiceId?: string | null;
+  stripeSubscriptionId?: string | null;
+  amount: number;
+  currency?: string;
+  status: 'pending' | 'succeeded' | 'failed' | 'refunded';
+  plan: string;
+  description?: string | null;
+  periodStart?: Date | null;
+  periodEnd?: Date | null;
+}) {
+  try {
+    await prisma.payment.create({
+      data: {
+        organizationId: params.organizationId,
+        stripePaymentIntentId: params.stripePaymentIntentId,
+        stripeInvoiceId: params.stripeInvoiceId,
+        stripeSubscriptionId: params.stripeSubscriptionId,
+        amount: params.amount,
+        currency: params.currency || 'brl',
+        status: params.status,
+        plan: params.plan,
+        description: params.description,
+        periodStart: params.periodStart,
+        periodEnd: params.periodEnd,
+      },
+    });
+    console.log(`[Payment] Recorded: ${params.status} - ${params.plan} - R$ ${(params.amount / 100).toFixed(2)}`);
+  } catch (err) {
+    console.error('[Payment] Failed to record payment:', err);
+  }
+}
+
+/**
  * Handle Stripe webhook event
  */
 export async function handleWebhookEvent(event: Stripe.Event) {
@@ -132,6 +325,7 @@ export async function handleWebhookEvent(event: Stripe.Event) {
         data: {
           stripeCustomerId: customerId,
           stripeSubscriptionId: subscriptionId,
+          stripeSubscriptionStatus: 'active',
           plan: planName,
         },
       });
@@ -142,27 +336,66 @@ export async function handleWebhookEvent(event: Stripe.Event) {
         data: { plan: planName },
       });
 
+      // Record initial payment
+      const amountTotal = session.amount_total || PLANS[planName]?.amount || 0;
+      const sess = session as any;
+      await recordPayment({
+        organizationId,
+        stripePaymentIntentId: sess.payment_intent as string,
+        stripeSubscriptionId: subscriptionId,
+        amount: amountTotal,
+        status: 'succeeded',
+        plan: planName,
+        description: `Assinatura ${PLANS[planName]?.name || planName}`,
+        periodStart: new Date(),
+      });
+
       console.log(`[Stripe] Subscription created for user ${userId}, plan ${planName}`);
       break;
     }
 
     case 'invoice.payment_succeeded': {
       const invoice = event.data.object as Stripe.Invoice;
-      const subscriptionId = (invoice as any).subscription as string;
+      const invoiceWithSub = invoice as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null };
+      const subscriptionId = typeof invoiceWithSub.subscription === 'string' ? invoiceWithSub.subscription : null;
       const customerId = invoice.customer as string;
 
       if (subscriptionId) {
-        // Update subscription status
+        // Find org by subscription
         const org = await prisma.organization.findFirst({
           where: { stripeSubscriptionId: subscriptionId },
         });
 
         if (org) {
+          const inv = invoice as any;
+          const periodStart = inv.period_start ? new Date(inv.period_start * 1000) : null;
+          const periodEnd = inv.period_end ? new Date(inv.period_end * 1000) : null;
+
+          // Update subscription period
           await prisma.organization.update({
             where: { id: org.id },
-            data: { plan: org.plan }, // Keep current plan active
+            data: {
+              stripeSubscriptionStatus: 'active',
+              stripeCurrentPeriodEnd: periodEnd,
+            },
           });
-          console.log(`[Stripe] Payment succeeded for org ${org.id}`);
+
+          // Record the payment
+          const inv2 = invoice as any;
+          await recordPayment({
+            organizationId: org.id,
+            stripePaymentIntentId: inv2.payment_intent as string,
+            stripeInvoiceId: inv2.id,
+            stripeSubscriptionId: subscriptionId,
+            amount: inv2.total,
+            status: 'succeeded',
+            plan: org.plan,
+            description: `Fatura ${org.plan} - ${inv2.number || ''}`.trim(),
+            periodStart,
+            periodEnd,
+          });
+
+          console.log(`[Stripe] Payment succeeded for org ${org.id}: R$ ${(invoice.total / 100).toFixed(2)}`);
         }
       }
       break;
@@ -170,11 +403,31 @@ export async function handleWebhookEvent(event: Stripe.Event) {
 
     case 'invoice.payment_failed': {
       const failedInvoice = event.data.object as Stripe.Invoice;
-      const failedSubId = (failedInvoice as any).subscription as string;
+      const failedWithSub = failedInvoice as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null };
+      const failedSubId = typeof failedWithSub.subscription === 'string' ? failedWithSub.subscription : null;
 
       if (failedSubId) {
+        const org = await prisma.organization.findFirst({
+          where: { stripeSubscriptionId: failedSubId },
+        });
+
+        if (org) {
+          await recordPayment({
+            organizationId: org.id,
+            stripeInvoiceId: failedInvoice.id,
+            stripeSubscriptionId: failedSubId,
+            amount: failedInvoice.total,
+            status: 'failed',
+            plan: org.plan,
+            description: `Fatura não paga - ${org.plan}`,
+          });
+
+          await prisma.organization.update({
+            where: { id: org.id },
+            data: { stripeSubscriptionStatus: 'past_due' },
+          });
+        }
         console.log(`[Stripe] Payment failed for subscription ${failedSubId}`);
-        // Optionally downgrade plan or notify user
       }
       break;
     }
@@ -190,11 +443,30 @@ export async function handleWebhookEvent(event: Stripe.Event) {
 
       if (org) {
         const status = subscription.status;
+        const sub = subscription as any;
+        const periodEnd = sub.current_period_end
+          ? new Date(sub.current_period_end * 1000)
+          : null;
+
+        await prisma.organization.update({
+          where: { id: org.id },
+          data: {
+            stripeSubscriptionStatus: status,
+            stripeCurrentPeriodEnd: periodEnd,
+            stripeSubscriptionId: subscription.id,
+            plan: status === 'active' || status === 'trialing'
+              ? org.plan
+              : 'FREE',
+          },
+        });
+
         if (status === 'canceled' || status === 'unpaid' || status === 'incomplete_expired') {
-          await prisma.organization.update({
-            where: { id: org.id },
+          // Downgrade user plan too
+          await prisma.user.updateMany({
+            where: { organizationId: org.id },
             data: { plan: 'FREE' },
           });
+
           console.log(`[Stripe] Subscription ${status} for org ${org.id}, downgraded to FREE`);
         }
       }

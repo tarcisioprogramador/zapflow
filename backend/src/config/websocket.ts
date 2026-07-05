@@ -17,7 +17,11 @@ export function setupWebSocket(httpServer: HttpServer): Server {
       return next(new Error('Authentication required'));
     }
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as { userId: string };
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+        return next(new Error('JWT_SECRET não configurado no servidor'));
+      }
+      const decoded = jwt.verify(token, jwtSecret) as { userId: string };
       socket.data.userId = decoded.userId;
       next();
     } catch {

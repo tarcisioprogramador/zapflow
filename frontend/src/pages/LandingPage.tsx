@@ -1,12 +1,14 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
+import { paymentsApi } from '../api';
+import { useAuthStore } from '../store';
 import {
   Zap, MessageSquare, Bot, GitBranch, Columns3, Send,
   Webhook, Users, Check, ChevronDown, Star,
   Smartphone, Play, Brain, Repeat, BotMessageSquare,
   Target, Clock, TrendingUp, X, Phone,
   ShoppingCart, ThumbsUp, HelpCircle, Sparkles, ArrowRight,
-  Radio,
+  Radio, Loader2,
 } from 'lucide-react';
 
 // ─── Scroll Reveal Hook ─────────────────────────────────
@@ -212,6 +214,48 @@ const whyReasons = [
   { icon: Bot, title: 'Atendimentos resolvidos automaticamente', desc: 'Enquanto você dorme, nossa IA está vendendo, tirando dúvidas e aquecendo leads. E o melhor: sem salário, sem férias, sem desculpas.' },
 ];
 
+function BuyButton({ plan, label, className }: { plan: string; label: string; className?: string }) {
+  const [loading, setLoading] = useState(false);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const navigate = useNavigate();
+
+  const handleClick = async () => {
+    if (!isAuthenticated) {
+      navigate(`/register?plan=${plan}`);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data } = await paymentsApi.createCheckout({ plan });
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch {
+      navigate('/settings?tab=plan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={loading}
+      className={className || 'w-full block text-center font-semibold px-5 py-3.5 rounded-lg transition-all duration-200 bg-zap-500 hover:bg-zap-600 text-white shadow-lg shadow-zap-500/20 btn-glow'}
+    >
+      {loading ? (
+        <span className="flex items-center justify-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Redirecionando...
+        </span>
+      ) : (
+        label
+      )}
+    </button>
+  );
+}
+
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-dark-950 text-white overflow-hidden">
@@ -277,13 +321,11 @@ export default function LandingPage() {
 
               <RevealSection delay={300}>
                 <div className="flex flex-col sm:flex-row items-center lg:items-start gap-4 mb-12">
-                  <Link
-                    to="/register"
+                  <BuyButton
+                    plan="PRO"
+                    label="Contratar Plano!"
                     className="group bg-zap-500 hover:bg-zap-600 text-white font-bold text-lg px-8 py-4 rounded-lg transition-all duration-200 shadow-lg shadow-zap-500/30 hover:shadow-zap-500/40 active:scale-[0.98] flex items-center gap-2 btn-glow"
-                  >
-                    Contratar Plano!
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </Link>
+                  />
                   <Link
                     to="/register"
                     className="bg-dark-800/80 hover:bg-dark-700/80 text-dark-200 font-medium text-lg px-8 py-4 rounded-lg transition-all duration-200 border border-dark-600 hover:border-zap-500/30 active:scale-[0.98] flex items-center gap-2"
@@ -415,10 +457,11 @@ export default function LandingPage() {
               Não é só mais uma "ferramenta de WhatsApp". É o fim das limitações.
             </p>
             <div className="mt-8">
-              <Link to="/register" className="group bg-zap-500 hover:bg-zap-600 text-white font-bold px-8 py-4 rounded-lg transition-all inline-flex items-center gap-2 shadow-lg shadow-zap-500/30 btn-glow">
-                Contratar Agora!
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </Link>
+              <BuyButton
+                plan="PRO"
+                label="Contratar Agora!"
+                className="group bg-zap-500 hover:bg-zap-600 text-white font-bold px-8 py-4 rounded-lg transition-all inline-flex items-center gap-2 shadow-lg shadow-zap-500/30 btn-glow"
+              />
             </div>
           </RevealSection>
         </div>
@@ -571,10 +614,11 @@ export default function LandingPage() {
                   <span>Configuração rápida — em menos de 48h</span>
                 </li>
               </ul>
-              <Link to="/register" className="group bg-zap-500 hover:bg-zap-600 text-white font-bold px-8 py-4 rounded-lg transition-all inline-flex items-center gap-2 shadow-lg shadow-zap-500/30 btn-glow">
-                Contratar Agora!
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </Link>
+              <BuyButton
+                plan="PRO"
+                label="Contratar Agora!"
+                className="group bg-zap-500 hover:bg-zap-600 text-white font-bold px-8 py-4 rounded-lg transition-all inline-flex items-center gap-2 shadow-lg shadow-zap-500/30 btn-glow"
+              />
             </RevealSection>
 
             {/* Right: Megan Chat UI */}
@@ -681,41 +725,48 @@ export default function LandingPage() {
                       </li>
                     ))}
                   </ul>
-                  <Link
-                    to="/register"
+                  <BuyButton
+                    plan={plan.name === 'IA Pro' ? 'PRO' : 'STARTER'}
+                    label={plan.cta}
                     className={`w-full block text-center font-semibold px-5 py-3.5 rounded-lg transition-all duration-200 ${
                       plan.popular
                         ? 'bg-zap-500 hover:bg-zap-600 text-white shadow-lg shadow-zap-500/20 btn-glow'
                         : 'bg-dark-700 hover:bg-dark-600 text-white border border-dark-600 hover:border-zap-500/30'
                     }`}
-                  >
-                    {plan.cta}
-                  </Link>
+                  />
                 </div>
               </RevealSection>
             ))}
           </div>
 
-          {/* Custom Plan */}
+          {/* Enterprise Plan */}
           <RevealSection delay={200}>
             <div className="max-w-4xl mx-auto">
               <div className="gradient-border-card rounded-xl p-8 text-center">
-                <h3 className="text-2xl font-heading font-bold text-white mb-3">PLANO PERSONALIZADO</h3>
-                <p className="text-lg font-heading font-bold text-zap-400 mb-4">ZapFlow</p>
-                <div className="flex items-baseline justify-center gap-1 mb-6">
+                <h3 className="text-2xl font-heading font-bold text-white mb-3">🏢 ENTERPRISE</h3>
+                <p className="text-sm text-zap-400 font-semibold mb-4">Para grandes operações</p>
+                <div className="flex items-baseline justify-center gap-1 mb-4">
                   <span className="text-sm text-dark-400">R$</span>
-                  <span className="text-4xl font-heading font-bold text-white">399</span>
+                  <span className="text-5xl font-heading font-bold text-white">497</span>
                   <span className="text-dark-400">/mês</span>
                 </div>
-                <p className="text-base text-dark-300 mb-6 max-w-lg mx-auto">
-                  Para quem precisa de ainda mais desempenho, mais conexões e mais automação
-                </p>
-                <a
-                  href="mailto:contato@zapflow.com"
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-w-lg mx-auto mb-6">
+                  {[
+                    'Números ilimitados', 'Atendentes ilimitados', 'CRM ilimitado',
+                    '20M Tokens de IA', 'Suporte prioritário 24h', 'SLA 99.9%',
+                    'Onboarding dedicado', 'Webhooks ilimitados', 'Fluxos ilimitados',
+                  ].map((f) => (
+                    <div key={f} className="flex items-center gap-1.5 text-xs text-dark-300 bg-dark-800/30 rounded-lg px-2.5 py-1.5">
+                      <Check className="w-3 h-3 text-zap-400 flex-shrink-0" />
+                      <span>{f}</span>
+                    </div>
+                  ))}
+                </div>
+                <BuyButton
+                  plan="ENTERPRISE"
+                  label="CONTRATAR ENTERPRISE"
                   className="inline-block bg-zap-500 hover:bg-zap-600 text-white font-bold px-8 py-4 rounded-lg transition-all shadow-lg shadow-zap-500/30 btn-glow"
-                >
-                  ENTRAR EM CONTATO
-                </a>
+                />
               </div>
             </div>
           </RevealSection>

@@ -4,7 +4,9 @@ import { prismaMock, mockResponse, mockAuthRequest, createTestUser, mockPrismaCl
 import authRouter from '../routes/auth';
 
 // Helper to call the router's internal handlers by simulating requests
-function simulateRequest(method: string, path: string, req: any, res: any) {
+// Handles routes with multiple middleware (e.g., bruteForceProtection + handler)
+// Properly awaits async handlers by wrapping each in a Promise that resolves on next()
+async function simulateRequest(method: string, path: string, req: any, res: any) {
   // Access the router's stack to find matching route
   const route = authRouter.stack.find((layer: any) => {
     if (!layer.route) return false;
@@ -15,9 +17,20 @@ function simulateRequest(method: string, path: string, req: any, res: any) {
     throw new Error(`Route ${method.toUpperCase()} ${path} not found`);
   }
 
-  // Execute the route handler
-  const handler = route.route!.stack[0].handle;
-  return handler(req, res, () => {});
+  // Execute ALL middleware in the route's stack in sequence
+  // Each handler resolves when it calls next(), which triggers the next handler
+  const handlers = route.route!.stack.map((layer: any) => layer.handle);
+
+  for (let i = 0; i < handlers.length; i++) {
+    await new Promise<void>((resolve) => {
+      const next = () => resolve();
+      const result = handlers[i](req, res, next);
+      // If handler returns a Promise (async), await it, but also resolve via next() for sync middleware
+      if (result?.then) {
+        result.then(resolve).catch(resolve);
+      }
+    });
+  }
 }
 
 describe('Auth Routes', () => {

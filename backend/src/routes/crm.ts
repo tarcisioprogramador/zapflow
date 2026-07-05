@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import prisma from '../config/database';
 import { authenticate } from '../middleware/auth';
-import { AuthRequest } from '../types';
+import { AuthRequest, verifyOrgAccess, verifyOwnership } from '../types';
 
 const router = Router();
 router.use(authenticate);
@@ -69,6 +69,11 @@ router.post('/boards', async (req: AuthRequest, res: Response): Promise<void> =>
 // PUT /api/crm/boards/:id - Update board
 router.put('/boards/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
+    const existing = await prisma.crmBoard.findUnique({ where: { id: req.params.id } });
+    if (!(await verifyOrgAccess(existing, req.user.userId, res, 'Board'))) return;
+
     const { name } = req.body;
     const board = await prisma.crmBoard.update({
       where: { id: req.params.id },
@@ -83,6 +88,11 @@ router.put('/boards/:id', async (req: AuthRequest, res: Response): Promise<void>
 // DELETE /api/crm/boards/:id
 router.delete('/boards/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
+    const existing = await prisma.crmBoard.findUnique({ where: { id: req.params.id } });
+    if (!(await verifyOrgAccess(existing, req.user.userId, res, 'Board'))) return;
+
     await prisma.crmBoard.delete({ where: { id: req.params.id } });
     res.json({ message: 'Board removido' });
   } catch (error) {
@@ -120,6 +130,15 @@ router.post('/stages', async (req: AuthRequest, res: Response): Promise<void> =>
 // PUT /api/crm/stages/:id - Update stage
 router.put('/stages/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
+    const existing = await prisma.crmStage.findUnique({
+      where: { id: req.params.id },
+      include: { board: { select: { organizationId: true } } },
+    });
+    if (!existing) { res.status(404).json({ error: 'Etapa não encontrada' }); return; }
+    if (!(await verifyOrgAccess(existing.board, req.user.userId, res, 'Etapa'))) return;
+
     const { name, color, position } = req.body;
     const stage = await prisma.crmStage.update({
       where: { id: req.params.id },
@@ -134,6 +153,15 @@ router.put('/stages/:id', async (req: AuthRequest, res: Response): Promise<void>
 // DELETE /api/crm/stages/:id
 router.delete('/stages/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
+    const existing = await prisma.crmStage.findUnique({
+      where: { id: req.params.id },
+      include: { board: { select: { organizationId: true } } },
+    });
+    if (!existing) { res.status(404).json({ error: 'Etapa não encontrada' }); return; }
+    if (!(await verifyOrgAccess(existing.board, req.user.userId, res, 'Etapa'))) return;
+
     await prisma.crmStage.delete({ where: { id: req.params.id } });
     res.json({ message: 'Etapa removida' });
   } catch (error) {
@@ -191,6 +219,15 @@ router.post('/cards', async (req: AuthRequest, res: Response): Promise<void> => 
 // PUT /api/crm/cards/:id - Update card (move, edit)
 router.put('/cards/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
+    const existing = await prisma.crmCard.findUnique({
+      where: { id: req.params.id },
+      include: { board: { select: { organizationId: true } } },
+    });
+    if (!existing) { res.status(404).json({ error: 'Card não encontrado' }); return; }
+    if (!(await verifyOrgAccess(existing.board, req.user.userId, res, 'Card'))) return;
+
     const { title, description, value, stageId, position } = req.body;
     const card = await prisma.crmCard.update({
       where: { id: req.params.id },
@@ -206,6 +243,15 @@ router.put('/cards/:id', async (req: AuthRequest, res: Response): Promise<void> 
 // PUT /api/crm/cards/:id/move - Move card between stages
 router.put('/cards/:id/move', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
+    const existing = await prisma.crmCard.findUnique({
+      where: { id: req.params.id },
+      include: { board: { select: { organizationId: true } } },
+    });
+    if (!existing) { res.status(404).json({ error: 'Card não encontrado' }); return; }
+    if (!(await verifyOrgAccess(existing.board, req.user.userId, res, 'Card'))) return;
+
     const { stageId, position } = req.body;
     const card = await prisma.crmCard.update({
       where: { id: req.params.id },
@@ -221,6 +267,15 @@ router.put('/cards/:id/move', async (req: AuthRequest, res: Response): Promise<v
 // DELETE /api/crm/cards/:id
 router.delete('/cards/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
+    const existing = await prisma.crmCard.findUnique({
+      where: { id: req.params.id },
+      include: { board: { select: { organizationId: true } } },
+    });
+    if (!existing) { res.status(404).json({ error: 'Card não encontrado' }); return; }
+    if (!(await verifyOrgAccess(existing.board, req.user.userId, res, 'Card'))) return;
+
     await prisma.crmCard.delete({ where: { id: req.params.id } });
     res.json({ message: 'Card removido' });
   } catch (error) {
@@ -280,6 +335,11 @@ router.post('/contacts', async (req: AuthRequest, res: Response): Promise<void> 
 // PUT /api/crm/contacts/:id
 router.put('/contacts/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
+    const existing = await prisma.contact.findUnique({ where: { id: req.params.id } });
+    if (!(await verifyOwnership(existing, req.user.userId, res, 'Contato'))) return;
+
     const { name, phone, email, company, tags, notes } = req.body;
     const contact = await prisma.contact.update({
       where: { id: req.params.id },
@@ -294,6 +354,11 @@ router.put('/contacts/:id', async (req: AuthRequest, res: Response): Promise<voi
 // DELETE /api/crm/contacts/:id
 router.delete('/contacts/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
+    const existing = await prisma.contact.findUnique({ where: { id: req.params.id } });
+    if (!(await verifyOwnership(existing, req.user.userId, res, 'Contato'))) return;
+
     await prisma.contact.delete({ where: { id: req.params.id } });
     res.json({ message: 'Contato removido' });
   } catch (error) {

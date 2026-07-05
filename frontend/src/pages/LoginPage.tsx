@@ -18,7 +18,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const { data } = await authApi.login({ email, password });
-      setAuth(data.user, data.token);
+      setAuth(data.user, data.token, data.refreshToken);
       toast.success('Bem-vindo de volta!');
       navigate('/');
     } catch (err: any) {

@@ -1,18 +1,18 @@
 import { Worker, Job } from 'bullmq';
 import Redis from 'ioredis';
-import { PrismaClient } from '@prisma/client';
+import { WhatsAppJob, CampaignJob, RemarketingJob } from '../types';
+import prisma from '../config/database';
 
-const prisma = new PrismaClient();
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
-let _whatsappWorker: Worker | null = null;
-let _campaignWorker: Worker | null = null;
-let _remarketingWorker: Worker | null = null;
+let _whatsappWorker: Worker<WhatsAppJob> | null = null;
+let _campaignWorker: Worker<CampaignJob> | null = null;
+let _remarketingWorker: Worker<RemarketingJob> | null = null;
 
-function tryCreateWorker<T = any>(
+function tryCreateWorker<T>(
   name: string,
-  processor: (job: Job<T>) => Promise<any>,
-): Worker | null {
+  processor: (job: Job<T>) => Promise<unknown>,
+): Worker<T> | null {
   try {
     const connection = new Redis(redisUrl, {
       maxRetriesPerRequest: null,
@@ -27,14 +27,17 @@ function tryCreateWorker<T = any>(
       return;
     });
 
-    const worker = new Worker(name, processor, { connection: connection as any });
+    const worker = new Worker<T>(name, processor, { connection: connection as any });
 
     worker.on('failed', (job, err) => {
-      console.error(`[${name}] Job ${job?.id} failed:`, err.message);
+      if (job) {
+        console.error(`[${name}] Job ${job.id} failed:`, err.message);
+      }
     });
 
     worker.on('error', (err) => {
-      if ((err as any)?.code === 'ECONNREFUSED') {
+      const redisErr = err as { code?: string };
+      if (redisErr.code === 'ECONNREFUSED') {
         // Silently ignore connection refused errors — Redis is optional
         return;
       }
@@ -50,17 +53,17 @@ function tryCreateWorker<T = any>(
 }
 
 // Lazy initialization — workers only created on first access
-export function getWhatsappWorker(): Worker | null {
+export function getWhatsappWorker(): Worker<WhatsAppJob> | null {
   if (_whatsappWorker === null) {
-    _whatsappWorker = tryCreateWorker('whatsapp-messages', async (job: Job) => {
-      const { to, message } = job.data;
+    _whatsappWorker = tryCreateWorker<WhatsAppJob>('whatsapp-messages', async (job: Job<WhatsAppJob>) => {
+      const { to, message, messageId } = job.data;
 
       console.log(`[WhatsApp] Sending message to ${to}: ${message}`);
 
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       await prisma.message.update({
-        where: { id: job.data.messageId },
+        where: { id: messageId },
         data: { status: 'SENT' },
       });
 
@@ -70,9 +73,9 @@ export function getWhatsappWorker(): Worker | null {
   return _whatsappWorker;
 }
 
-export function getCampaignWorker(): Worker | null {
+export function getCampaignWorker(): Worker<CampaignJob> | null {
   if (_campaignWorker === null) {
-    _campaignWorker = tryCreateWorker('campaign-messages', async (job: Job) => {
+    _campaignWorker = tryCreateWorker<CampaignJob>('campaign-messages', async (job: Job<CampaignJob>) => {
       const { campaignId, contactId, phone, message } = job.data;
 
       console.log(`[Campaign] Sending to ${phone}: ${message}`);
@@ -95,9 +98,9 @@ export function getCampaignWorker(): Worker | null {
   return _campaignWorker;
 }
 
-export function getRemarketingWorker(): Worker | null {
+export function getRemarketingWorker(): Worker<RemarketingJob> | null {
   if (_remarketingWorker === null) {
-    _remarketingWorker = tryCreateWorker('remarketing', async (job: Job) => {
+    _remarketingWorker = tryCreateWorker<RemarketingJob>('remarketing', async (job: Job<RemarketingJob>) => {
       const { executionId, contactId } = job.data;
       console.log(`[Remarketing] Sending follow-up to contact ${contactId}`);
 

@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import 'dotenv/config';
+import prisma from '../src/config/database';
 import bcrypt from 'bcryptjs';
-
-const prisma = new PrismaClient();
 
 async function main() {
   console.log('🌱 Seeding database...');
@@ -168,7 +167,7 @@ async function main() {
       { name: 'Urgente', color: '#ef4444' },
       { name: 'Parceiro', color: '#8b5cf6' },
     ],
-    skipDuplicates: true,
+
   });
 
   // Create demo campaign

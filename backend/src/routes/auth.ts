@@ -1,14 +1,62 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import prisma from '../config/database';
-import { generateToken } from '../middleware/auth';
-import { AuthRequest } from '../types';
+import {
+  generateToken,
+  generateRefreshToken,
+  validateRefreshToken,
+  setAccessTokenCookie,
+  clearAuthCookies,
+} from '../middleware/auth';
+import {
+  bruteForceProtection,
+  registerRateLimit,
+} from '../middleware/rate-limit';
+import {
+  recordFailedAttempt,
+  clearLoginAttempts,
+  recordRegisterAttempt,
+} from '../services/rate-limit';
+import { AuthRequest, AuthPayload, UserRole } from '../types';
 import { startUserTrial, getUserTrialStatus } from '../services/trial';
 
 const router = Router();
 
-// POST /api/auth/register
-router.post('/register', async (req: AuthRequest, res: Response): Promise<void> => {
+// ─── Helper: build user response (no password) ──────────
+function buildUserResponse(user: any) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    plan: user.plan,
+    avatar: user.avatar,
+    phone: user.phone,
+    organization: user.organization
+      ? { id: user.organization.id, name: user.organization.name, plan: user.organization.plan }
+      : null,
+  };
+}
+
+// ─── Helper: set auth cookies and return tokens ──
+async function setAuthCookies(user: any, res: Response) {
+  const payload: AuthPayload = {
+    userId: user.id,
+    email: user.email,
+    role: user.role as UserRole,
+  };
+
+  const accessToken = generateToken(payload);
+  const refreshToken = await generateRefreshToken(payload, res);
+  setAccessTokenCookie(res, accessToken);
+
+  return { accessToken, refreshToken };
+}
+
+// POST /api/auth/register — with IP-based rate limit
+router.post('/register', registerRateLimit, async (req: AuthRequest, res: Response): Promise<void> => {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+
   try {
     const { name, email, password, organizationName } = req.body;
 
@@ -48,21 +96,16 @@ router.post('/register', async (req: AuthRequest, res: Response): Promise<void> 
     // Start 7-day free trial for new users
     await startUserTrial(user.id);
 
-    const token = generateToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-    });
+    // Record successful registration for rate limiting
+    recordRegisterAttempt(ip);
+
+    // Set httpOnly cookies + return tokens in body (for Railway proxy that strips cookies)
+    const { accessToken, refreshToken } = await setAuthCookies(user, res);
 
     res.status(201).json({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        plan: user.plan,
-      },
+      token: accessToken,
+      refreshToken,
+      user: buildUserResponse(user),
     });
   } catch (error) {
     console.error('Register error:', error);
@@ -70,55 +113,135 @@ router.post('/register', async (req: AuthRequest, res: Response): Promise<void> 
   }
 });
 
-// POST /api/auth/login
-router.post('/login', async (req: AuthRequest, res: Response): Promise<void> => {
+// POST /api/auth/login — with brute force protection
+router.post('/login', bruteForceProtection, async (req: AuthRequest, res: Response): Promise<void> => {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    res.status(400).json({ error: 'Email e senha são obrigatórios' });
+    return;
+  }
+
   try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      res.status(400).json({ error: 'Email e senha são obrigatórios' });
-      return;
-    }
-
     const user = await prisma.user.findUnique({
       where: { email },
       include: { organization: true },
     });
 
+    // Use same error message for non-existent user and wrong password
+    // This prevents user enumeration via timing/oracle attacks
+    const fakeHash = '$2a$12$00000000000000000000000000000000000000000000000'; // 60 chars
+
     if (!user) {
+      // Record failed attempt even for non-existent emails to prevent enumeration
+      recordFailedAttempt(ip, email);
+      // Simulate bcrypt work factor to prevent timing-based user enumeration
+      try {
+        await bcrypt.compare(password, fakeHash);
+      } catch {
+        // Ignore bcrypt errors on fake hash — we just need the delay
+      }
       res.status(401).json({ error: 'Credenciais inválidas' });
       return;
     }
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
+      recordFailedAttempt(ip, email);
       res.status(401).json({ error: 'Credenciais inválidas' });
       return;
     }
 
-    const token = generateToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-    });
+    // Successful login — clear failed attempts
+    clearLoginAttempts(ip, email);
+
+    // Set httpOnly cookies + return tokens in body (for Railway proxy that strips cookies)
+    const { accessToken, refreshToken } = await setAuthCookies(user, res);
 
     res.json({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        plan: user.plan,
-        avatar: user.avatar,
-        organization: user.organization
-          ? { id: user.organization.id, name: user.organization.name, plan: user.organization.plan }
-          : null,
-      },
+      token: accessToken,
+      refreshToken,
+      user: buildUserResponse(user),
     });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Erro ao fazer login' });
+  }
+});
+
+// POST /api/auth/refresh — Refresh access token
+// Tries httpOnly cookie first, then falls back to request body (for Railway proxy that strips cookies)
+router.post('/refresh', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    // Try cookie first (local dev), fallback to body (production/Railway)
+    const refreshTokenStr = req.cookies?.zapflow_refresh_token || req.body?.refreshToken;
+    const { valid, userId, tokenRecord } = await validateRefreshToken(refreshTokenStr);
+
+    if (!valid || !userId) {
+      clearAuthCookies(res);
+      res.status(401).json({ error: 'Sessão expirada. Faça login novamente.' });
+      return;
+    }
+
+    // Fetch fresh user data for the new token
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { organization: true },
+    });
+
+    if (!user) {
+      clearAuthCookies(res);
+      res.status(401).json({ error: 'Usuário não encontrado' });
+      return;
+    }
+
+    // Issue new tokens (rotate refresh token)
+    const newPayload: AuthPayload = {
+      userId: user.id,
+      email: user.email,
+      role: user.role as UserRole,
+    };
+
+    const accessToken = generateToken(newPayload);
+    setAccessTokenCookie(res, accessToken);
+
+    await generateRefreshToken(newPayload, res, {
+      oldTokenId: tokenRecord?.id,
+    });
+
+    res.json({
+      token: accessToken,
+      refreshToken,
+      user: buildUserResponse(user),
+    });
+  } catch (error) {
+    console.error('Refresh error:', error);
+    clearAuthCookies(res);
+    res.status(500).json({ error: 'Erro ao renovar sessão' });
+  }
+});
+
+// POST /api/auth/logout — Clear cookies and revoke refresh token
+router.post('/logout', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    // Try cookie first, fallback to request body
+    const refreshTokenStr = req.cookies?.zapflow_refresh_token || req.body?.refreshToken;
+
+    if (refreshTokenStr) {
+      // Revoke the refresh token in database
+      await prisma.refreshToken.updateMany({
+        where: { token: refreshTokenStr, revoked: false },
+        data: { revoked: true },
+      });
+    }
+
+    clearAuthCookies(res);
+    res.json({ message: 'Sessão encerrada' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    clearAuthCookies(res);
+    res.json({ message: 'Sessão encerrada' });
   }
 });
 
@@ -140,17 +263,7 @@ router.get('/me', async (req: AuthRequest, res: Response): Promise<void> => {
       return;
     }
 
-    res.json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      plan: user.plan,
-      avatar: user.avatar,
-      organization: user.organization
-        ? { id: user.organization.id, name: user.organization.name, plan: user.organization.plan }
-        : null,
-    });
+    res.json(buildUserResponse(user));
   } catch (error) {
     res.status(500).json({ error: 'Erro ao buscar usuário' });
   }

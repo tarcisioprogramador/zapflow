@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import prisma from '../config/database';
 import { authenticate } from '../middleware/auth';
-import { AuthRequest } from '../types';
+import { AuthRequest, verifyOwnership } from '../types';
 
 const router = Router();
 router.use(authenticate);
@@ -23,11 +23,14 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
 // GET /api/campaigns/:id
 router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
     const campaign = await prisma.campaign.findUnique({
       where: { id: req.params.id },
       include: { contacts: true },
     });
-    if (!campaign) { res.status(404).json({ error: 'Campanha não encontrada' }); return; }
+
+    if (!(await verifyOwnership(campaign, req.user.userId, res, 'Campanha'))) return;
     res.json(campaign);
   } catch (error) {
     res.status(500).json({ error: 'Erro ao buscar campanha' });
@@ -66,6 +69,11 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
 // PUT /api/campaigns/:id - Update campaign
 router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
+    const existing = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!(await verifyOwnership(existing, req.user.userId, res, 'Campanha'))) return;
+
     const { name, message, mediaUrl, scheduledAt } = req.body;
     const campaign = await prisma.campaign.update({
       where: { id: req.params.id },
@@ -85,6 +93,11 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
 // PUT /api/campaigns/:id/status - Update status (pause, resume)
 router.put('/:id/status', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
+    const existing = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!(await verifyOwnership(existing, req.user.userId, res, 'Campanha'))) return;
+
     const { status } = req.body;
     const campaign = await prisma.campaign.update({
       where: { id: req.params.id },
@@ -99,6 +112,11 @@ router.put('/:id/status', async (req: AuthRequest, res: Response): Promise<void>
 // DELETE /api/campaigns/:id
 router.delete('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
+    const existing = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!(await verifyOwnership(existing, req.user.userId, res, 'Campanha'))) return;
+
     await prisma.campaign.delete({ where: { id: req.params.id } });
     res.json({ message: 'Campanha removida' });
   } catch (error) {

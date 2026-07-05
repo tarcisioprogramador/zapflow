@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import prisma from '../config/database';
 import { authenticate, authorize } from '../middleware/auth';
 import { AuthRequest } from '../types';
+import { sanitizeContent } from '../utils';
 import {
   createInstance,
   getQRCode,
@@ -103,7 +104,7 @@ webhookRouter.post('/evolution', async (req: any, res: Response): Promise<void> 
       // Save incoming message
       const savedMessage = await prisma.message.create({
         data: {
-          content,
+          content: sanitizeContent(content),
           type,
           from,
           to: whatsappNumber.number,
@@ -311,7 +312,7 @@ Nunca invente informações. Use apenas a base de conhecimento fornecida.`,
     // Save the AI response to database
     const savedReply = await prisma.message.create({
       data: {
-        content: aiResponse,
+        content: sanitizeContent(aiResponse),
         type: 'TEXT',
         from: whatsappNumber.number,
         to: from,
@@ -345,7 +346,7 @@ Nunca invente informações. Use apenas a base de conhecimento fornecida.`,
       }
       await prisma.message.create({
         data: {
-          content: fallbackMsg,
+          content: sanitizeContent(fallbackMsg),
           type: 'TEXT',
           from: whatsappNumber.number,
           to: from,
@@ -396,7 +397,7 @@ async function executeFlowNode(
       // Save to database
       await prisma.message.create({
         data: {
-          content: messageText,
+          content: sanitizeContent(messageText),
           type: 'TEXT',
           from: conversation?.whatsappNumber?.number || '',
           to,
@@ -640,7 +641,7 @@ router.post('/:id/send', async (req: AuthRequest, res: Response): Promise<void> 
     // Save message to database
     const msg = await prisma.message.create({
       data: {
-        content: message,
+        content: sanitizeContent(message),
         type: type || 'TEXT',
         from: number.number,
         to,

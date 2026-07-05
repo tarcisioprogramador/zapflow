@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '../store';
 import { webhooksApi, usersApi, paymentsApi, authApi } from '../api';
-import { Webhook, TrialStatus } from '../types';
+import { Webhook, TrialStatus, PaymentRecord, SubscriptionInfo } from '../types';
 import PlanComparison from '../components/PlanComparison';
 import {
   User, Users, Webhook as WebhookIcon, Key, CreditCard, Bell, Shield, Globe, Plus, Trash2, Send,
-  ExternalLink, Copy, Check, Zap, Loader2,
+  ExternalLink, Copy, Check, Zap, Loader2, AlertCircle, CheckCircle2, Receipt, Calendar, ArrowRight, Clock,
+  ExternalLink as ExternalLinkIcon,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -92,6 +93,20 @@ export default function SettingsPage() {
   const [newWebhook, setNewWebhook] = useState({ name: '', url: '', events: ['message.received'] });
   const [showWebhookModal, setShowWebhookModal] = useState(false);
 
+  // Stripe setup state
+  const [stripeStatus, setStripeStatus] = useState<any>(null);
+  const [checkingStripe, setCheckingStripe] = useState(false);
+  const [settingUpStripe, setSettingUpStripe] = useState(false);
+
+  // Subscription & payment history
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [loadingSubscription, setLoadingSubscription] = useState(false);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [paymentsPage, setPaymentsPage] = useState(1);
+  const [paymentsTotal, setPaymentsTotal] = useState(0);
+  const [portalLoading, setPortalLoading] = useState(false);
+
   const loadTrial = useCallback(async () => {
     try {
       const { data } = await authApi.trial();
@@ -99,11 +114,99 @@ export default function SettingsPage() {
     } catch { /* ignore */ }
   }, []);
 
+  // Check Stripe configuration status
+  const checkStripeStatus = useCallback(async () => {
+    setCheckingStripe(true);
+    try {
+      const { data } = await paymentsApi.getStatus();
+      setStripeStatus(data);
+    } catch {
+      setStripeStatus({ configured: false, nextStep: 'Erro ao verificar status do Stripe' });
+    } finally {
+      setCheckingStripe(false);
+    }
+  }, []);
+
+  // Load subscription info
+  const loadSubscription = useCallback(async () => {
+    setLoadingSubscription(true);
+    try {
+      const { data } = await paymentsApi.getSubscription();
+      setSubscription(data);
+    } catch {
+      setSubscription(null);
+    } finally {
+      setLoadingSubscription(false);
+    }
+  }, []);
+
+  // Load payment history
+  const loadPayments = useCallback(async (page = 1) => {
+    setLoadingPayments(true);
+    try {
+      const { data } = await paymentsApi.getHistory({ page, limit: 10 });
+      setPayments(data.payments || []);
+      setPaymentsTotal(data.pagination?.total || 0);
+      setPaymentsPage(data.pagination?.page || 1);
+    } catch {
+      setPayments([]);
+    } finally {
+      setLoadingPayments(false);
+    }
+  }, []);
+
+  // Handle portal session
+  const handleOpenPortal = async () => {
+    setPortalLoading(true);
+    try {
+      const { data } = await paymentsApi.createPortal();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Erro ao abrir portal');
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
+  // Auto-check Stripe status and load subscription/payments when Plan tab opens
+  useEffect(() => {
+    if (activeTab === 'plan') {
+      checkStripeStatus();
+      loadTrial();
+      loadSubscription();
+      loadPayments();
+    }
+  }, [activeTab, checkStripeStatus, loadTrial, loadSubscription, loadPayments]);
+
+  // Auto-create Stripe products
+  const handleSetupStripe = async () => {
+    setSettingUpStripe(true);
+    try {
+      const { data } = await paymentsApi.setupProducts();
+      if (data.success) {
+        toast.success('✅ Produtos Stripe criados! Copie os Price IDs para o .env');
+        setStripeStatus((prev: any) => ({
+          ...prev,
+          configured: true,
+          products: data.products,
+          envVars: data.envVars,
+        }));
+      } else {
+        toast.error(data.error || 'Erro ao criar produtos');
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Erro ao configurar Stripe');
+    } finally {
+      setSettingUpStripe(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'webhooks') loadWebhooks();
     if (activeTab === 'team') loadTeam();
-    if (activeTab === 'plan') loadTrial();
-  }, [activeTab, loadTrial]);
+  }, [activeTab]);
 
   const loadWebhooks = async () => {
     try {
@@ -340,17 +443,347 @@ export default function SettingsPage() {
 
               <PlanComparison trial={trial} currentPlan={user?.plan} />
 
+              {/* ─── Current Subscription Status ────────────── */}
+              <div className="glass-card p-6">
+                <h4 className="text-lg font-heading font-bold text-white mb-4 flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-zap-400" />
+                  Assinatura
+                </h4>
+
+                {loadingSubscription ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="w-5 h-5 animate-spin text-zap-400" />
+                  </div>
+                ) : subscription?.hasSubscription ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="p-4 rounded-xl bg-dark-800/50 border border-dark-700/30">
+                        <p className="text-xs text-dark-500 mb-1">Plano Atual</p>
+                        <p className="text-lg font-bold text-white">{subscription.planName}</p>
+                        <p className="text-xs text-zap-400 mt-1">R$ {(subscription.amount / 100).toFixed(2).replace('.', ',')}/mês</p>
+                      </div>
+                      <div className="p-4 rounded-xl bg-dark-800/50 border border-dark-700/30">
+                        <p className="text-xs text-dark-500 mb-1">Status</p>
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
+                          subscription.subscriptionStatus === 'active'
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            : subscription.subscriptionStatus === 'past_due'
+                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                              : 'bg-dark-700 text-dark-300 border border-dark-600'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            subscription.subscriptionStatus === 'active' ? 'bg-emerald-400'
+                              : subscription.subscriptionStatus === 'past_due' ? 'bg-amber-400'
+                                : 'bg-dark-400'
+                          }`} />
+                          {subscription.subscriptionStatus === 'active' ? 'Ativa'
+                            : subscription.subscriptionStatus === 'past_due' ? 'Pagamento Pendente'
+                              : subscription.subscriptionStatus || 'Ativa'}
+                        </span>
+                      </div>
+                      <div className="p-4 rounded-xl bg-dark-800/50 border border-dark-700/30">
+                        <p className="text-xs text-dark-500 mb-1">Próxima Cobrança</p>
+                        {subscription.currentPeriodEnd ? (
+                          <>
+                            <p className="text-lg font-bold text-white">
+                              {new Date(subscription.currentPeriodEnd).toLocaleDateString('pt-BR')}
+                            </p>
+                            <p className="text-xs text-dark-400 mt-1">
+                              {subscription.daysRemaining != null && subscription.daysRemaining > 0
+                                ? `Em ${subscription.daysRemaining} ${subscription.daysRemaining === 1 ? 'dia' : 'dias'}`
+                                : subscription.daysRemaining != null && subscription.daysRemaining <= 0
+                                  ? 'Vencida'
+                                  : '—'}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-sm text-dark-400">—</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 pt-2">
+                      <button
+                        onClick={handleOpenPortal}
+                        disabled={portalLoading}
+                        className="btn-primary text-sm flex items-center gap-2"
+                      >
+                        {portalLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <ExternalLinkIcon className="w-4 h-4" />
+                        )}
+                        Gerenciar Assinatura
+                      </button>
+                      <p className="text-xs text-dark-500">
+                        No Stripe Portal você pode atualizar cartão, alterar plano ou cancelar.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-dark-800/50 border border-dark-700/30 text-center">
+                    <p className="text-dark-400 text-sm">
+                      {user?.plan === 'FREE' || user?.plan === 'STARTER'
+                        ? 'Você está no período de teste gratuito. Faça upgrade para ter acesso a todos os recursos!'
+                        : 'Nenhuma assinatura ativa no momento.'}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* ─── Stripe Setup Guide ───────────────── */}
+              <div className="glass-card p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-lg font-heading font-bold text-white flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-zap-400" />
+                    Configuração de Pagamentos
+                  </h4>
+                  <button
+                    onClick={checkStripeStatus}
+                    disabled={checkingStripe}
+                    className="btn-ghost text-xs flex items-center gap-1"
+                  >
+                    {checkingStripe ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <AlertCircle className="w-3.5 h-3.5" />
+                    )}
+                    Verificar Status
+                  </button>
+                </div>
+
+                {stripeStatus === null && !checkingStripe && (
+                  <div className="p-4 rounded-xl bg-dark-800/50 border border-dark-700/30 text-center">
+                    <p className="text-dark-400 text-sm">Clique em "Verificar Status" para checar a configuração do Stripe</p>
+                  </div>
+                )}
+
+                {checkingStripe && (
+                  <div className="p-4 rounded-xl bg-dark-800/50 border border-dark-700/30 flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-zap-400" />
+                    <span className="text-dark-400 text-sm">Verificando...</span>
+                  </div>
+                )}
+
+                {stripeStatus && stripeStatus.configured && (
+                  <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                      <span className="text-emerald-400 font-semibold">Stripe configurado!</span>
+                    </div>
+                    <p className="text-sm text-dark-300">
+                      Checkout ativo. Clientes podem pagar com cartão de crédito ou boleto.
+                    </p>
+                  </div>
+                )}
+
+                {stripeStatus && !stripeStatus.configured && (
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertCircle className="w-5 h-5 text-amber-400" />
+                        <span className="text-amber-400 font-semibold">Stripe não configurado</span>
+                      </div>
+                      <p className="text-sm text-dark-300 mb-3">
+                        Complete os passos abaixo para ativar vendas automáticas:
+                      </p>
+
+                      {stripeStatus.envVars && (
+                        <div className="p-3 rounded-lg bg-dark-900/50 border border-dark-700/30 mb-3">
+                          <p className="text-xs text-emerald-400 font-semibold mb-2">✅ Produtos criados! Copie para o .env:</p>
+                          {stripeStatus.envVars.map((v: string) => (
+                            <code key={v} className="block text-xs font-mono text-zap-400 bg-dark-950/50 p-1.5 rounded mb-1">{v}</code>
+                          ))}
+                        </div>
+                      )}
+
+                      <ol className="space-y-3 text-sm">
+                        <li className="flex items-start gap-3">
+                          <span className="w-6 h-6 rounded-full bg-zap-500/20 text-zap-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">1</span>
+                          <div>
+                            <p className="text-white font-medium">Criar conta no Stripe</p>
+                            <p className="text-dark-400 text-xs mt-0.5">Acesse <a href="https://dashboard.stripe.com/register" target="_blank" rel="noopener noreferrer" className="text-zap-400 hover:underline">dashboard.stripe.com/register</a> e crie sua conta</p>
+                          </div>
+                        </li>
+                        <li className="flex items-start gap-3">
+                          <span className="w-6 h-6 rounded-full bg-zap-500/20 text-zap-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">2</span>
+                          <div>
+                            <p className="text-white font-medium">Copiar as chaves de API</p>
+                            <p className="text-dark-400 text-xs mt-0.5">Vá em <strong className="text-dark-200">Developers {'>'} API keys</strong> e copie a <strong className="text-dark-200">Secret Key</strong> e <strong className="text-dark-200">Publishable Key</strong></p>
+                            <p className="text-dark-400 text-xs mt-1">Adicione no <code className="text-zap-400 bg-dark-900/50 px-1 rounded">.env</code>:</p>
+                            <code className="block text-xs font-mono text-zap-400 bg-dark-950/50 p-1.5 rounded mt-1">STRIPE_SECRET_KEY=sk_test_...</code>
+                            <code className="block text-xs font-mono text-zap-400 bg-dark-950/50 p-1.5 rounded mt-1">STRIPE_PUBLISHABLE_KEY=pk_test_...</code>
+                          </div>
+                        </li>
+                        <li className="flex items-start gap-3">
+                          <span className="w-6 h-6 rounded-full bg-zap-500/20 text-zap-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">3</span>
+                          <div>
+                            <p className="text-white font-medium">Criar os produtos no Stripe</p>
+                            <p className="text-dark-400 text-xs mt-0.5">Após adicionar a Secret Key no .env e reiniciar o servidor, clique no botão abaixo:</p>
+                            <div className="mt-3">
+                              <button
+                                onClick={handleSetupStripe}
+                                disabled={settingUpStripe || !stripeStatus.keys?.secretKey}
+                                className="btn-primary text-sm flex items-center gap-2"
+                              >
+                                {settingUpStripe ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Zap className="w-4 h-4" />
+                                )}
+                                {settingUpStripe ? 'Criando...' : 'Criar Produtos Automagicamente'}
+                              </button>
+                              {stripeStatus.keys?.secretKey === false && (
+                                <p className="text-xs text-amber-400 mt-1">Adicione STRIPE_SECRET_KEY no .env primeiro</p>
+                              )}
+                            </div>
+                          </div>
+                        </li>
+                        <li className="flex items-start gap-3">
+                          <span className="w-6 h-6 rounded-full bg-zap-500/20 text-zap-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">4</span>
+                          <div>
+                            <p className="text-white font-medium">Configurar Webhook</p>
+                            <p className="text-dark-400 text-xs mt-0.5">
+                              Vá em <strong className="text-dark-200">Developers {'>'} Webhooks {'>'} Add endpoint</strong>
+                            </p>
+                            <p className="text-dark-400 text-xs mt-1">
+                              URL: <code className="text-zap-400 bg-dark-900/50 px-1 rounded">{window.location.origin}/api/webhook/stripe</code>
+                            </p>
+                            <p className="text-dark-400 text-xs mt-1">
+                              Eventos: <code className="text-dark-300 bg-dark-900/50 px-1 rounded">checkout.session.completed</code>, <code className="text-dark-300 bg-dark-900/50 px-1 rounded">invoice.payment_succeeded</code>, <code className="text-dark-300 bg-dark-900/50 px-1 rounded">customer.subscription.deleted</code>
+                            </p>
+                          </div>
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ─── Upgrade Cards ───────────────────── */}
               <h4 className="text-lg font-heading font-bold text-white">Fazer Upgrade</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl">
                 {[
                   { id: 'STARTER', name: 'IA Starter', price: '97', period: '/mês', features: ['1 Número conectado', '5 atendentes', 'CRM Kanban (2 quadros)', '15.000 Webhooks', '5M Tokens de IA'], current: user?.plan === 'STARTER' || user?.plan === 'FREE', popular: false },
                   { id: 'PRO', name: 'IA Pro', price: '197', period: '/mês', features: ['1 Número conectado', 'Atendentes ilimitados', 'CRM Kanban (5 quadros)', '30.000 Webhooks', '10M Tokens de IA', 'Integração Post/Put/Get'], current: user?.plan === 'PRO', popular: true },
+                  { id: 'ENTERPRISE', name: 'Enterprise', price: '497', period: '/mês', features: ['Números ilimitados', 'Atendentes ilimitados', 'CRM Kanban ilimitado', 'Webhooks ilimitados', '20M Tokens de IA', 'Suporte prioritário 24h', 'SLA 99.9%', 'Onboarding dedicado'], current: user?.plan === 'ENTERPRISE', popular: false },
                 ].map((plan) => (
                   <PlanCard
                     key={plan.id}
                     plan={plan}
                   />
                 ))}
+              </div>
+
+              {/* ─── Payment History ──────────────────── */}
+              <div className="glass-card p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h4 className="text-lg font-heading font-bold text-white flex items-center gap-2">
+                    <Receipt className="w-5 h-5 text-zap-400" />
+                    Histórico de Pagamentos
+                  </h4>
+                  {paymentsTotal > 0 && (
+                    <span className="text-xs text-dark-500">{paymentsTotal} registro(s)</span>
+                  )}
+                </div>
+
+                {loadingPayments ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-5 h-5 animate-spin text-zap-400" />
+                  </div>
+                ) : payments.length > 0 ? (
+                  <div className="space-y-3">
+                    {payments.map((payment) => (
+                      <div key={payment.id} className="flex items-center justify-between p-4 rounded-xl bg-dark-800/50 border border-dark-700/30 hover:bg-dark-700/30 transition-colors">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                            payment.status === 'succeeded' ? 'bg-emerald-500/10'
+                              : payment.status === 'failed' ? 'bg-red-500/10'
+                                : 'bg-dark-700/50'
+                          }`}>
+                            {payment.status === 'succeeded' ? (
+                              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                            ) : payment.status === 'failed' ? (
+                              <AlertCircle className="w-5 h-5 text-red-400" />
+                            ) : (
+                              <Clock className="w-5 h-5 text-amber-400" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-white">
+                              {payment.description || `Pagamento ${payment.plan}`}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-xs text-dark-400">
+                                {new Date(payment.createdAt).toLocaleDateString('pt-BR', {
+                                  day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                                })}
+                              </span>
+                              <span className={`badge text-[10px] ${
+                                payment.status === 'succeeded' ? 'badge-green'
+                                  : payment.status === 'failed' ? 'badge-red'
+                                    : payment.status === 'refunded' ? 'badge-purple'
+                                      : 'badge-blue'
+                              }`}>
+                                {payment.status === 'succeeded' ? 'Pago'
+                                  : payment.status === 'failed' ? 'Falhou'
+                                    : payment.status === 'refunded' ? 'Reembolsado'
+                                      : 'Pendente'}
+                              </span>
+                            </div>
+                            {payment.periodStart && payment.periodEnd && (
+                              <div className="flex items-center gap-1 mt-1 text-[10px] text-dark-500">
+                                <Calendar className="w-3 h-3" />
+                                {new Date(payment.periodStart).toLocaleDateString('pt-BR')}
+                                <ArrowRight className="w-3 h-3" />
+                                {new Date(payment.periodEnd).toLocaleDateString('pt-BR')}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-base font-bold ${
+                            payment.status === 'succeeded' ? 'text-white'
+                              : payment.status === 'failed' ? 'text-red-400'
+                                : 'text-dark-300'
+                          }`}>
+                            R$ {(payment.amount / 100).toFixed(2).replace('.', ',')}
+                          </p>
+                          <p className="text-xs text-dark-500 mt-0.5">{payment.plan}</p>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Pagination */}
+                    <div className="flex items-center justify-center gap-2 pt-2">
+                      <button
+                        onClick={() => loadPayments(paymentsPage - 1)}
+                        disabled={paymentsPage <= 1}
+                        className="btn-ghost text-xs disabled:opacity-30"
+                      >
+                        Anterior
+                      </button>
+                      <span className="text-xs text-dark-500">
+                        Página {paymentsPage} de {Math.ceil(paymentsTotal / 10)}
+                      </span>
+                      <button
+                        onClick={() => loadPayments(paymentsPage + 1)}
+                        disabled={paymentsPage >= Math.ceil(paymentsTotal / 10)}
+                        className="btn-ghost text-xs disabled:opacity-30"
+                      >
+                        Próxima
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-8 text-center">
+                    <Receipt className="w-10 h-10 text-dark-600 mx-auto mb-3" />
+                    <p className="text-sm text-dark-500">Nenhum pagamento registrado ainda.</p>
+                    <p className="text-xs text-dark-600 mt-1">
+                      Os pagamentos aparecerão aqui após a primeira cobrança.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}

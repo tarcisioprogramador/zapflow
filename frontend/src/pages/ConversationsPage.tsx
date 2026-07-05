@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { conversationsApi, whatsappApi } from '../api';
 import { Conversation, Message } from '../types';
 import { useSocket } from '../hooks/useSocket';
+import { sanitizeContent } from '../utils';
 import {
   Search, Send, Paperclip, Phone, Video, MoreVertical,
   MessageSquare, Filter, CheckCheck, Image, Mic,
@@ -119,7 +120,7 @@ export default function ConversationsPage() {
       // Send via the connected WhatsApp number
       await whatsappApi.send(selected.whatsappNumber.id, {
         to: toPhone,
-        message: msg.content,
+        message: sanitizeContent(msg.content),
       });
     } catch (err: any) {
       // Demo mode - message saved locally, no backend to send
@@ -176,10 +177,9 @@ export default function ConversationsPage() {
                   <span className="text-[10px] text-dark-500 flex-shrink-0">
                     {new Date(conv.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                   </span>
-                </div>
-                <p className="text-xs text-dark-400 truncate mt-0.5">
-                  {conv.messages?.[0]?.content || 'Sem mensagens'}
-                </p>
+                </div>                  <p className="text-xs text-dark-400 truncate mt-0.5">
+                    {sanitizeContent(conv.messages?.[0]?.content) || 'Sem mensagens'}
+                  </p>
                 <div className="flex items-center gap-1.5 mt-1">
                   {conv.tags?.map((t) => (
                     <span key={t.tag.id} className="badge text-[9px] px-1.5 py-0" style={{ backgroundColor: t.tag.color + '20', color: t.tag.color, borderColor: t.tag.color + '40' }}>
@@ -223,7 +223,7 @@ export default function ConversationsPage() {
                     ? 'bg-zap-500 text-white rounded-br-md'
                     : 'bg-dark-800 text-dark-100 rounded-bl-md border border-dark-700/50'
                 }`}>
-                  <p className="text-sm leading-relaxed">{msg.content}</p>
+                  <p className="text-sm leading-relaxed">{sanitizeContent(msg.content)}</p>
                   <div className={`flex items-center gap-1 mt-1 ${msg.isFromBot ? 'justify-end' : ''}`}>
                     <span className={`text-[10px] ${msg.isFromBot ? 'text-white/60' : 'text-dark-500'}`}>
                       {new Date(msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}

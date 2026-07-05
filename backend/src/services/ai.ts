@@ -13,6 +13,7 @@
 import OpenAI from 'openai';
 import Groq from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { AIProvider, AIIntent } from '../types';
 
 interface AIContext {
   systemPrompt?: string;
@@ -20,7 +21,11 @@ interface AIContext {
   conversationHistory?: { role: 'user' | 'assistant'; content: string }[];
 }
 
-type Provider = 'groq' | 'gemini' | 'openai';
+interface IntentResult {
+  intent: AIIntent;
+  confidence: number;
+  entities: Record<string, string>;
+}
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
@@ -47,8 +52,8 @@ function getOpenAI(): OpenAI {
 }
 
 /** Detect which providers are configured */
-function getAvailableProviders(): Provider[] {
-  const providers: Provider[] = [];
+function getAvailableProviders(): AIProvider[] {
+  const providers: AIProvider[] = [];
   if (GROQ_API_KEY) providers.push('groq');
   if (GEMINI_API_KEY) providers.push('gemini');
   if (OPENAI_API_KEY) providers.push('openai');
@@ -219,11 +224,7 @@ export async function generateAIResponse(
 /**
  * Analyze message intent using the best available provider.
  */
-export async function analyzeIntent(message: string): Promise<{
-  intent: string;
-  confidence: number;
-  entities: Record<string, string>;
-}> {
+export async function analyzeIntent(message: string): Promise<IntentResult> {
   const providers = getAvailableProviders();
   const systemPrompt = `Analise a intenção do usuário e retorne um JSON com:
 - intent: string (compra, duvida, suporte, elogio, reclamacao, cancelamento, saudacao, outro)
@@ -286,7 +287,7 @@ export async function analyzeIntent(message: string): Promise<{
 export function getActiveProviderName(): string {
   const providers = getAvailableProviders();
   if (providers.length === 0) return 'Nenhum';
-  const names: Record<Provider, string> = {
+  const names: Record<AIProvider, string> = {
     groq: 'Groq (grátis)',
     gemini: 'Gemini (grátis)',
     openai: 'OpenAI',

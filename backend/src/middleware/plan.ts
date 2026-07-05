@@ -1,9 +1,13 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../config/database';
-import { AuthRequest, PLAN_LIMITS } from '../types';
+import { AuthRequest, PLAN_LIMITS, PlanResourceKey } from '../types';
 import { isUserTrialExpired } from '../services/trial';
 
-export function checkPlanLimit(resource: keyof typeof PLAN_LIMITS[string]) {
+type NumericResource = {
+  [K in PlanResourceKey]: typeof PLAN_LIMITS['FREE'][K] extends number ? K : never;
+}[PlanResourceKey];
+
+export function checkPlanLimit(resource: NumericResource) {
   return async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!req.user) {
@@ -31,7 +35,7 @@ export function checkPlanLimit(resource: keyof typeof PLAN_LIMITS[string]) {
         return;
       }
 
-      const plan = user.organization?.plan || user.plan;
+      const plan = (user.organization?.plan || user.plan) as keyof typeof PLAN_LIMITS;
       const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.FREE;
       const limit = limits[resource];
 

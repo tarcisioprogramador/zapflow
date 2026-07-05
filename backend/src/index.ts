@@ -1,7 +1,9 @@
 import 'dotenv/config';
 import express from 'express';
+import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
+import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { createServer } from 'http';
@@ -28,9 +30,52 @@ const io = setupWebSocket(httpServer);
 const PORT = process.env.PORT || 3001;
 
 // Middleware
+app.set('trust proxy', 1); // Trust first proxy (Caddy/Nginx) for real client IP
+
+// ─── Helmet Security Headers ───────────────────────────
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow frontend to load resources
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      'default-src': ["'self'"],
+      'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      'style-src': ["'self'", "'unsafe-inline'"],
+      'img-src': ["'self'", 'data:', 'blob:', 'https:'],
+      'media-src': ["'self'", 'https:'],
+      'connect-src': ["'self'", frontendUrl, 'https:', 'wss:'],
+      'font-src': ["'self'", 'data:'],
+      'frame-ancestors': ["'none'"],
+      'form-action': ["'self'"],
+      'base-uri': ["'self'"],
+      'upgrade-insecure-requests': [],
+    },
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  hsts: {
+    maxAge: 15768000, // 6 months
+    includeSubDomains: true,
+    preload: true,
+  },
+  frameguard: { action: 'deny' },
+  noSniff: true,
+  hidePoweredBy: true,
+  ieNoOpen: true,
+  xssFilter: true,
+}));
+
 app.use(compression()); // Gzip response compression
-app.use(cors({ origin: process.env.FRONTEND_URL || '*', credentials: true }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(cors({
+  origin: frontendUrl,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'X-Request-Id'],
+}));
+app.use(cookieParser()); // Parse cookies for httpOnly auth tokens
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Rate limiting for API routes
 const apiLimiter = rateLimit({
@@ -42,25 +87,43 @@ const apiLimiter = rateLimit({
 });
 app.use('/api', apiLimiter);
 
-// Stricter rate limit for auth routes
-const authLimiter = rateLimit({
+// Stricter rate limit for login specifically (global safety net) — placed BEFORE routes
+const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
+  max: 20, // 20 req / 15 min global — per-IP+email lockout is handled by bruteForceProtection middleware
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Muitas tentativas de login. Tente novamente em 15 minutos.' },
 });
-app.use('/api/auth', authLimiter);
+app.use('/api/auth/login', loginLimiter);
+
+// Gentler rate limit for register
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // 10 registration attempts per hour — per-IP limit is handled by registerRateLimit middleware
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas de cadastro. Tente novamente mais tarde.' },
+});
+app.use('/api/auth/register', registerLimiter);
+
+// Light rate limit for other auth routes (refresh, logout, me, profile)
+const authLightLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/auth', authLightLimiter);
 
 // Parse JSON body but preserve raw body for Stripe webhook signature verification
 app.use(
   express.json({
-    limit: '50mb',
+    limit: '10mb',
     verify: (req: any, _res, buf) => {
       // Store raw body for Stripe webhook signature verification
-      if (req.headers['stripe-signature']) {
-        req.rawBody = buf.toString();
-      }
+      // This MUST run before any other body parser for the Stripe webhook route
+      req.rawBody = req.rawBody || buf.toString();
     },
   })
 );

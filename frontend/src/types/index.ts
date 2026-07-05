@@ -153,6 +153,42 @@ export interface RemarketingSequence {
   createdAt: string;
 }
 
+export interface PaymentRecord {
+  id: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'succeeded' | 'failed' | 'refunded';
+  plan: string;
+  description: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  createdAt: string;
+}
+
+export interface SubscriptionInfo {
+  plan: string;
+  planName: string;
+  amount: number;
+  hasSubscription: boolean;
+  subscriptionId: string | null;
+  subscriptionStatus: string | null;
+  currentPeriodEnd: string | null;
+  daysRemaining: number | null;
+}
+
+export interface InvoiceInfo {
+  id: string;
+  invoiceNumber: string;
+  amount: number;
+  currency: string;
+  status: string;
+  plan: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  paidAt: string;
+  downloadUrl: string | null;
+}
+
 export interface DashboardMetrics {
   totalMessages: number;
   activeConversations: number;

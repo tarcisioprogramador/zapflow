@@ -96,10 +96,9 @@ describe('Campaigns Routes', () => {
 
       await simulateRequest('get', '/:id', req, res);
 
-      expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ error: 'Campanha não encontrada' })
-      );
+      expect(res.status).toHaveBeenCalledWith(404);        expect(res.json).toHaveBeenCalledWith(
+          expect.objectContaining({ error: 'Campanha não encontrado' })
+        );
     });
   });
 
@@ -165,6 +164,8 @@ describe('Campaigns Routes', () => {
       });
       const res = mockResponse();
 
+      // Must mock findUnique for ownership verification
+      prismaMock.campaign.findUnique.mockResolvedValue(mockCampaign);
       prismaMock.campaign.update.mockResolvedValue({
         ...mockCampaign,
         name: 'Updated Campaign',
@@ -190,6 +191,8 @@ describe('Campaigns Routes', () => {
       });
       const res = mockResponse();
 
+      // Must mock findUnique for ownership verification
+      prismaMock.campaign.findUnique.mockResolvedValue(mockCampaign);
       prismaMock.campaign.update.mockResolvedValue({
         ...mockCampaign,
         status: 'RUNNING',
@@ -209,6 +212,8 @@ describe('Campaigns Routes', () => {
       const req = mockAuthRequest({ params: { id: 'campaign-1' } });
       const res = mockResponse();
 
+      // Must mock findUnique for ownership verification first
+      prismaMock.campaign.findUnique.mockResolvedValue(mockCampaign);
       prismaMock.campaign.delete.mockResolvedValue(mockCampaign);
 
       await simulateRequest('delete', '/:id', req, res);

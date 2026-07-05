@@ -42,6 +42,7 @@ interface PrismaMock {
   remarketingExecution: PrismaDelegateMock;
   tag: PrismaDelegateMock;
   conversationTag: PrismaDelegateMock;
+  refreshToken: PrismaDelegateMock;
   $on: ReturnType<typeof vi.fn>;
   $connect: ReturnType<typeof vi.fn>;
   $disconnect: ReturnType<typeof vi.fn>;
@@ -83,6 +84,7 @@ export function createPrismaMock(): PrismaMock {
     remarketingExecution: createDelegateMock(),
     tag: createDelegateMock(),
     conversationTag: createDelegateMock(),
+    refreshToken: createDelegateMock(),
     $on: vi.fn(),
     $connect: vi.fn(),
     $disconnect: vi.fn(),
@@ -121,6 +123,8 @@ export function mockResponse() {
   res.sendStatus = vi.fn().mockReturnValue(res);
   res.set = vi.fn().mockReturnValue(res);
   res.end = vi.fn().mockReturnValue(res);
+  res.cookie = vi.fn().mockReturnValue(res);
+  res.clearCookie = vi.fn().mockReturnValue(res);
   return res as Response;
 }
 
@@ -132,6 +136,8 @@ export function mockAuthRequest(overrides: Partial<any> = {}) {
     body: {},
     headers: { authorization: 'Bearer test-token' },
     app: { get: vi.fn().mockReturnValue(null) },
+    ip: '127.0.0.1',
+    socket: { remoteAddress: '127.0.0.1' },
     ...overrides,
   } as any;
 }

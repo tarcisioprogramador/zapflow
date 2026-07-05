@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import prisma from '../config/database';
 import { authenticate } from '../middleware/auth';
-import { AuthRequest } from '../types';
+import { AuthRequest, verifyOwnership } from '../types';
 
 const router = Router();
 router.use(authenticate);
@@ -116,15 +116,13 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
 // GET /api/flows/:id - Get flow detail
 router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
     const flow = await prisma.flow.findUnique({
       where: { id: req.params.id },
     });
 
-    if (!flow) {
-      res.status(404).json({ error: 'Fluxo não encontrado' });
-      return;
-    }
-
+    if (!(await verifyOwnership(flow, req.user.userId, res, 'Fluxo'))) return;
     res.json(flow);
   } catch (error) {
     res.status(500).json({ error: 'Erro ao buscar fluxo' });
@@ -163,6 +161,11 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
 // PUT /api/flows/:id - Update flow (save editor state)
 router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
+    const existing = await prisma.flow.findUnique({ where: { id: req.params.id } });
+    if (!(await verifyOwnership(existing, req.user.userId, res, 'Fluxo'))) return;
+
     const { name, description, nodes, edges, isActive, triggerType, triggerValue } = req.body;
 
     const flow = await prisma.flow.update({
@@ -187,15 +190,15 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
 // PUT /api/flows/:id/toggle - Toggle flow active state
 router.put('/:id/toggle', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
     const flow = await prisma.flow.findUnique({ where: { id: req.params.id } });
-    if (!flow) {
-      res.status(404).json({ error: 'Fluxo não encontrado' });
-      return;
-    }
+    const ownedFlow = await verifyOwnership(flow, req.user.userId, res, 'Fluxo');
+    if (!ownedFlow) return;
 
     const updated = await prisma.flow.update({
       where: { id: req.params.id },
-      data: { isActive: !flow.isActive },
+      data: { isActive: !ownedFlow.isActive },
     });
 
     res.json(updated);
@@ -207,6 +210,11 @@ router.put('/:id/toggle', async (req: AuthRequest, res: Response): Promise<void>
 // DELETE /api/flows/:id
 router.delete('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
+    const existing = await prisma.flow.findUnique({ where: { id: req.params.id } });
+    if (!(await verifyOwnership(existing, req.user.userId, res, 'Fluxo'))) return;
+
     await prisma.flow.delete({ where: { id: req.params.id } });
     res.json({ message: 'Fluxo removido' });
   } catch (error) {
@@ -253,20 +261,20 @@ router.post('/from-template', async (req: AuthRequest, res: Response): Promise<v
 // POST /api/flows/:id/duplicate - Duplicate flow
 router.post('/:id/duplicate', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
     const original = await prisma.flow.findUnique({ where: { id: req.params.id } });
-    if (!original) {
-      res.status(404).json({ error: 'Fluxo não encontrado' });
-      return;
-    }
+    const ownedOriginal = await verifyOwnership(original, req.user.userId, res, 'Fluxo');
+    if (!ownedOriginal) return;
 
     const duplicate = await prisma.flow.create({
       data: {
-        name: `${original.name} (Cópia)`,
-        description: original.description,
-        triggerType: original.triggerType,
-        triggerValue: original.triggerValue,
-        nodes: typeof original.nodes === 'string' ? original.nodes : JSON.stringify(original.nodes),
-        edges: typeof original.edges === 'string' ? original.edges : JSON.stringify(original.edges),
+        name: `${ownedOriginal.name} (Cópia)`,
+        description: ownedOriginal.description,
+        triggerType: ownedOriginal.triggerType,
+        triggerValue: ownedOriginal.triggerValue,
+        nodes: typeof ownedOriginal.nodes === 'string' ? ownedOriginal.nodes : JSON.stringify(ownedOriginal.nodes),
+        edges: typeof ownedOriginal.edges === 'string' ? ownedOriginal.edges : JSON.stringify(ownedOriginal.edges),
         userId: req.user!.userId,
       },
     });

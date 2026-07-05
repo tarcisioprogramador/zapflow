@@ -1,9 +1,10 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../src/generated/prisma/client"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -32,7 +33,27 @@ model User {
   campaigns      Campaign[]
   flows          Flow[]
 
+  refreshTokens RefreshToken[]
+
   @@index([trialExpiresAt])
+}
+
+// ─── Refresh Tokens (httpOnly cookie auth) ────────────────
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  replacedBy String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
 }
 
 model Organization {
@@ -42,6 +63,8 @@ model Organization {
   logo      String?
   stripeCustomerId     String? @unique
   stripeSubscriptionId String?
+  stripeSubscriptionStatus String? @default("incomplete")
+  stripeCurrentPeriodEnd  DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -50,6 +73,7 @@ model Organization {
   crmBoards  CrmBoard[]
   webhooks   Webhook[]
   knowledgeBaseItems  KnowledgeBaseItem[]
+  payments   Payment[]
 }
 
 // ─── WhatsApp Integration ───────────────────────────────
@@ -283,11 +307,11 @@ model Campaign {
 }
 
 model CampaignContact {
-  id        String @id @default(uuid())
-  phone     String
-  name      String?
-  status    String @default("pending")
-  sentAt    DateTime?
+  id     String    @id @default(uuid())
+  phone  String
+  name   String?
+  status String    @default("pending")
+  sentAt DateTime?
 
   campaign   Campaign @relation(fields: [campaignId], references: [id])
   campaignId String
@@ -307,6 +331,31 @@ model Webhook {
 
   organization   Organization @relation(fields: [organizationId], references: [id])
   organizationId String
+}
+
+// ─── Payments / Transactions ───────────────────────────
+
+model Payment {
+  id        String   @id @default(uuid())
+  stripePaymentIntentId String? @unique
+  stripeInvoiceId       String? @unique
+  stripeSubscriptionId  String?
+  amount        Int     // em centavos (R$ 97,00 = 9700)
+  currency      String  @default("brl")
+  status        String  @default("pending") // pending, succeeded, failed, refunded
+  plan          String  // STARTER, PRO, ENTERPRISE
+  description   String?
+  periodStart   DateTime?
+  periodEnd     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+
+  @@index([organizationId])
+  @@index([stripeSubscriptionId])
+  @@index([createdAt])
 }
 
 // ─── Remarketing ────────────────────────────────────────

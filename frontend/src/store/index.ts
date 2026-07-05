@@ -4,9 +4,15 @@ import { User } from '../types';
 
 interface AuthState {
   user: User | null;
+  /** Access token (JWT) — stored for Bearer header on requests */
   token: string | null;
+  /** Refresh token — used to get a new access token when it expires */
+  refreshToken: string | null;
   isAuthenticated: boolean;
-  setAuth: (user: User, token: string) => void;
+  isLoading: boolean;
+  setAuth: (user: User, token?: string, refreshToken?: string) => void;
+  setUser: (user: User) => void;
+  setLoading: (loading: boolean) => void;
   logout: () => void;
   updateUser: (user: Partial<User>) => void;
 }
@@ -16,15 +22,28 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       token: null,
+      refreshToken: null,
       isAuthenticated: false,
-      setAuth: (user, token) => set({ user, token, isAuthenticated: true }),
-      logout: () => set({ user: null, token: null, isAuthenticated: false }),
+      isLoading: true,
+      setAuth: (user, token, refreshToken) =>
+        set({ user, token: token || null, refreshToken: refreshToken || null, isAuthenticated: true, isLoading: false }),
+      setUser: (user) => set({ user, isAuthenticated: true, isLoading: false }),
+      setLoading: (loading) => set({ isLoading: loading }),
+      logout: () => set({ user: null, token: null, refreshToken: null, isAuthenticated: false, isLoading: false }),
       updateUser: (partial) =>
         set((state) => ({
           user: state.user ? { ...state.user, ...partial } : null,
         })),
     }),
-    { name: 'zapflow-auth' }
+    {
+      name: 'zapflow-auth',
+      partialize: (state) => ({
+        user: state.user,
+        token: state.token,
+        refreshToken: state.refreshToken,
+        isAuthenticated: state.isAuthenticated,
+      }),
+    }
   )
 );
 

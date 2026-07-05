@@ -4,33 +4,106 @@ import { useAuthStore } from '../store';
 const api = axios.create({
   baseURL: '/api',
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true, // Send cookies (httpOnly auth tokens) on every request
 });
 
+// ─── Request interceptor ─────────────────────────────────
+// The token is now automatically sent via httpOnly cookie by the browser.
+// No need to manually set Authorization header.
+// We keep this for backward compat with any code that still uses the Bearer header.
 api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().token;
-  if (token) {
+  if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
+// ─── Response interceptor — auto-refresh on 401 ──────────
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value: unknown) => void;
+  reject: (reason: unknown) => void;
+}> = [];
+
+function processQueue(error: unknown, token: string | null = null) {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+}
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      useAuthStore.getState().logout();
-      window.location.href = '/login';
+  async (error) => {
+    const originalRequest = error.config;
+
+    // Only attempt refresh on 401 from non-auth endpoints
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/auth/login') &&
+      !originalRequest.url?.includes('/auth/register')
+    ) {
+      if (isRefreshing) {
+        // Queue this request until the refresh completes
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then((token) => {
+          if (token) {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+          }
+          return api(originalRequest);
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        // Send refresh token in body (for Railway proxy that strips cookies)
+        // The backend falls back from cookie to req.body.refreshToken
+        const refreshToken = useAuthStore.getState().refreshToken;
+        const { data } = await api.post('/auth/refresh', { refreshToken });
+
+        // Update store with fresh user data and token
+        useAuthStore.getState().setAuth(data.user, data.token, data.refreshToken);
+
+        // Retry all queued requests
+        processQueue(null, data.token);
+
+        // Retry the original request
+        if (data.token) {
+          originalRequest.headers.Authorization = `Bearer ${data.token}`;
+        }
+        return api(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError, null);
+        useAuthStore.getState().logout();
+        // Don't force hard reload — React Router's ProtectedRoute
+        // will redirect to /login smoothly via isAuthenticated = false
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
     }
+
     return Promise.reject(error);
   }
 );
 
-// Auth
+// ─── Auth ─────────────────────────────────────────────────
 export const authApi = {
   login: (data: { email: string; password: string }) => api.post('/auth/login', data),
   register: (data: { name: string; email: string; password: string; organizationName?: string }) =>
     api.post('/auth/register', data),
   me: () => api.get('/auth/me'),
+  refresh: () => api.post('/auth/refresh'),
+  logout: () => api.post('/auth/logout'),
   updateProfile: (data: any) => api.put('/auth/profile', data),
   trial: () => api.get('/auth/trial'),
 };
@@ -152,6 +225,11 @@ export const paymentsApi = {
   getSession: (id: string) => api.get(`/payments/session/${id}`),
   getSubscription: () => api.get('/payments/subscription'),
   createPortal: () => api.post('/payments/portal'),
+  getStatus: () => api.get('/payments/status'),
+  setupProducts: () => api.post('/payments/setup-products'),
+  getHistory: (params?: { page?: number; limit?: number }) =>
+    api.get('/payments/history', { params }),
+  getInvoices: () => api.get('/payments/invoices'),
 };
 
 export default api;

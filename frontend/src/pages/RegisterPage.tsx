@@ -17,7 +17,7 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       const { data } = await authApi.register(form);
-      setAuth(data.user, data.token);
+      setAuth(data.user, data.token, data.refreshToken);
       toast.success('Conta criada com sucesso!');
       navigate('/');
     } catch (err: any) {

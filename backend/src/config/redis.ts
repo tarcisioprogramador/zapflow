@@ -1,20 +1,22 @@
 import Redis from 'ioredis';
 import { Queue } from 'bullmq';
+import { WhatsAppJob, CampaignJob, RemarketingJob } from '../types';
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
 // Module-level caches — start as undefined so first access triggers creation
 let _redis: Redis | undefined;
-let _whatsappQueue: Queue<any, any, string> | undefined;
-let _campaignQueue: Queue<any, any, string> | undefined;
-let _remarketingQueue: Queue<any, any, string> | undefined;
+let _whatsappQueue: Queue<WhatsAppJob> | undefined;
+let _campaignQueue: Queue<CampaignJob> | undefined;
+let _remarketingQueue: Queue<RemarketingJob> | undefined;
 
 const warnOnce = (() => {
   const warned = new Set<string>();
   return (label: string, err: unknown) => {
     if (!warned.has(label)) {
       warned.add(label);
-      console.warn(`[Redis] ${label} unavailable — running without it. ${(err as Error)?.message || ''}`);
+      const error = err as Error | null;
+      console.warn(`[Redis] ${label} unavailable — running without it. ${error?.message || ''}`);
     }
   };
 })();
@@ -27,7 +29,8 @@ function createRedis(): Redis | undefined {
       retryStrategy: () => null,
     });
     client.on('error', (err: Error) => {
-      if ((err as any)?.code === 'ECONNREFUSED' || (err as any)?.code === 'ENOTFOUND') {
+      const redisErr = err as { code?: string };
+      if (redisErr.code === 'ECONNREFUSED' || redisErr.code === 'ENOTFOUND') {
         warnOnce('Client', err);
         _redis = undefined;
         return;
@@ -67,7 +70,7 @@ export const redis = {
   },
 };
 
-function createQueue(name: string): Queue<any, any, string> | undefined {
+function createQueue<T>(name: string): Queue<T> | undefined {
   try {
     const connection = new Redis(redisUrl, {
       maxRetriesPerRequest: null,
@@ -75,19 +78,20 @@ function createQueue(name: string): Queue<any, any, string> | undefined {
       retryStrategy: () => null,
     });
     connection.on('error', (err: Error) => {
-      if ((err as any)?.code === 'ECONNREFUSED' || (err as any)?.code === 'ENOTFOUND') {
+      const redisErr = err as { code?: string };
+      if (redisErr.code === 'ECONNREFUSED' || redisErr.code === 'ENOTFOUND') {
         warnOnce(`Queue ${name}`, err);
         return;
       }
       console.error(`[Redis] Queue "${name}" error:`, err.message);
     });
 
-    const defaultJobOptions: Record<string, any> =
+    const defaultJobOptions =
       name !== 'remarketing'
-        ? { attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
+        ? { attempts: 3, backoff: { type: 'exponential' as const, delay: 2000 } }
         : {};
 
-    return new Queue(name, {
+    return new Queue<T>(name, {
       connection: connection as any,
       defaultJobOptions,
     });
@@ -97,22 +101,17 @@ function createQueue(name: string): Queue<any, any, string> | undefined {
   }
 }
 
-function getQueue(name: string): Queue<any, any, string> | undefined {
-  if (name === 'whatsapp-messages') {
-    if (_whatsappQueue === undefined) _whatsappQueue = createQueue(name);
-    return _whatsappQueue;
-  }
-  if (name === 'campaign-messages') {
-    if (_campaignQueue === undefined) _campaignQueue = createQueue(name);
-    return _campaignQueue;
-  }
-  if (name === 'remarketing') {
-    if (_remarketingQueue === undefined) _remarketingQueue = createQueue(name);
-    return _remarketingQueue;
-  }
-  return undefined;
+export function getWhatsappQueue(): Queue<WhatsAppJob> | undefined {
+  if (_whatsappQueue === undefined) _whatsappQueue = createQueue<WhatsAppJob>('whatsapp-messages');
+  return _whatsappQueue;
 }
 
-export function getWhatsappQueue()  { return getQueue('whatsapp-messages'); }
-export function getCampaignQueue()  { return getQueue('campaign-messages'); }
-export function getRemarketingQueue() { return getQueue('remarketing'); }
+export function getCampaignQueue(): Queue<CampaignJob> | undefined {
+  if (_campaignQueue === undefined) _campaignQueue = createQueue<CampaignJob>('campaign-messages');
+  return _campaignQueue;
+}
+
+export function getRemarketingQueue(): Queue<RemarketingJob> | undefined {
+  if (_remarketingQueue === undefined) _remarketingQueue = createQueue<RemarketingJob>('remarketing');
+  return _remarketingQueue;
+}

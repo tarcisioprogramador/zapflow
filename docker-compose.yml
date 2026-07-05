@@ -1,5 +1,3 @@
-version: "3.8"
-
 # ═══════════════════════════════════════════
 # ZapFlow - Docker Compose (Desenvolvimento)
 # ═══════════════════════════════════════════
@@ -41,6 +39,7 @@ services:
       POSTGRES_DB: zapflow
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./scripts/db-init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -94,6 +93,56 @@ services:
       redis:
         condition: service_healthy
 
+  # ─── Evolution API (WhatsApp Gateway) ────────
+  # Gateway oficial para conectar números WhatsApp reais.
+  # Doc: https://doc.evolution-api.com/
+  #
+  # Após iniciar, acesse http://localhost:8080 para o painel.
+  # Crie uma API Key no menu "API" e configure no .env.
+  evolution-api:
+    image: evoapicloud/evolution-api:latest
+    container_name: zapflow-evolution
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # ─── Configuração da Database ──────────
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: "postgresql"
+      DATABASE_CONNECTION_URI: "postgresql://postgres:postgres@postgres:5432/evolution?schema=public"
+
+      # ─── Redis para cache e filas ──────────
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: "redis://redis:6379/1"
+      CACHE_REDIS_PREFIX_KEY: "evolution"
+
+      # ─── Segurança ─────────────────────────
+      AUTHENTICATION_API_KEY: "21bc4c78-3640-455a-9e9c-e0f72f54c098"
+
+      # ─── Webhook global ────────────────────
+      # Os webhooks por instância são configurados automaticamente
+      # pelo ZapFlow ao conectar cada número.
+      WEBHOOK_GLOBAL_URL: ""
+      WEBHOOK_GLOBAL_ENABLED: "false"
+
+      # ─── Logs ──────────────────────────────
+      LOG_LEVEL: "ERROR"
+      LOG_SAVE: "false"
+      DEL_INSTANCE: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    volumes:
+      - evolution_store:/evolution/store
+
   # ─── Frontend (produção - nginx) ────────────
   # Em desenvolvimento, prefira usar:
   #   cd frontend && npm run dev
@@ -116,4 +165,6 @@ volumes:
   pgdata:
     driver: local
   redisdata:
+    driver: local
+  evolution_store:
     driver: local

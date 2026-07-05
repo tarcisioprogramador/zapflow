@@ -1,7 +1,8 @@
 import { Router, Response } from 'express';
 import prisma from '../config/database';
 import { authenticate } from '../middleware/auth';
-import { AuthRequest } from '../types';
+import { AuthRequest, ConversationStatus } from '../types';
+import { Prisma } from '../generated/prisma/client';
 
 const router = Router();
 router.use(authenticate);
@@ -9,15 +10,20 @@ router.use(authenticate);
 // GET /api/conversations - List conversations
 router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { status, search, whatsappNumberId } = req.query;
+    if (!req.user) {
+      res.status(401).json({ error: 'Não autenticado' });
+      return;
+    }
 
-    const where: any = {};
+    const { status, search, whatsappNumberId } = req.query as Record<string, string | undefined>;
 
-    if (status) where.status = status;
+    const where: Prisma.ConversationWhereInput = {};
+
+    if (status) where.status = status as ConversationStatus;
     if (whatsappNumberId) where.whatsappNumberId = whatsappNumberId;
 
     // Get user's organization numbers
-    const user = await prisma.user.findUnique({ where: { id: req.user!.userId } });
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
     if (user?.organizationId) {
       const orgNumbers = await prisma.whatsAppNumber.findMany({
         where: { organizationId: user.organizationId },
@@ -39,11 +45,12 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
     });
 
     // If search, filter by contact name or phone
-    const filtered = search
+    const searchStr = String(search || '').toLowerCase();
+    const filtered = searchStr
       ? conversations.filter(
           (c) =>
-            c.contact?.name.toLowerCase().includes(String(search).toLowerCase()) ||
-            c.contact?.phone.includes(String(search))
+            c.contact?.name.toLowerCase().includes(searchStr) ||
+            c.contact?.phone.includes(searchStr)
         )
       : conversations;
 

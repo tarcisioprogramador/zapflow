@@ -47,10 +47,16 @@
 
   # ─── Security Headers ─────────────────────────
   header {
-    # Security
+    # MIME-type sniffing protection
     X-Content-Type-Options "nosniff"
+    
+    # Clickjacking protection
     X-Frame-Options "DENY"
+    
+    # XSS filter (legacy browsers)
     X-XSS-Protection "1; mode=block"
+    
+    # Controle de referrer entre origens
     Referrer-Policy "strict-origin-when-cross-origin"
     
     # HSTS (6 meses, inclui subdomínios, preload)
@@ -59,8 +65,21 @@
     # Permissions Policy (restringe APIs do navegador)
     Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
     
-    # Content Security Policy (ajuste conforme necessário)
-    # Content-Security-Policy "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: wss:; img-src 'self' data: blob: https:; media-src 'self' https:; connect-src 'self' https: wss:; font-src 'self' data:;"
+    # Content Security Policy — restringe fontes de conteúdo
+    # Ajuste conforme necessário para novas integrações
+    Content-Security-Policy "
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval';
+      style-src 'self' 'unsafe-inline';
+      img-src 'self' data: blob: https:;
+      media-src 'self' https:;
+      connect-src 'self' https: wss:;
+      font-src 'self' data:;
+      frame-ancestors 'none';
+      form-action 'self';
+      base-uri 'self';
+      upgrade-insecure-requests;
+    "
     
     # Remove header de servidor
     -Server

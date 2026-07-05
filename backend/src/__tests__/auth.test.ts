@@ -1,11 +1,25 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { prismaMock, mockResponse, mockAuthRequest, createTestUser, mockPrismaClear } from './helpers';
 import authRouter from '../routes/auth';
 
+// Generate a real JWT for tests that go through the authenticate middleware
+const TEST_JWT_SECRET = process.env.JWT_SECRET || 'insecure-dev-fallback';
+function generateTestToken(overrides = {}) {
+  return jwt.sign(
+    { userId: 'test-user-id', email: 'test@email.com', role: 'OWNER', ...overrides },
+    TEST_JWT_SECRET,
+    { expiresIn: '15m' }
+  );
+}
+
 // Helper to call the router's internal handlers by simulating requests
 // Handles routes with multiple middleware (e.g., bruteForceProtection + handler)
-// Properly awaits async handlers by wrapping each in a Promise that resolves on next()
+// Properly awaits async handlers by wrapping each in a Promise that resolves:
+// 1. When next() is called (middleware passes to next handler)
+// 2. When the handler's promise resolves (async handler)
+// 3. Immediately after sync execution (middleware that doesn't call next(), like authenticate on failure)
 async function simulateRequest(method: string, path: string, req: any, res: any) {
   // Access the router's stack to find matching route
   const route = authRouter.stack.find((layer: any) => {
@@ -18,16 +32,19 @@ async function simulateRequest(method: string, path: string, req: any, res: any)
   }
 
   // Execute ALL middleware in the route's stack in sequence
-  // Each handler resolves when it calls next(), which triggers the next handler
   const handlers = route.route!.stack.map((layer: any) => layer.handle);
 
   for (let i = 0; i < handlers.length; i++) {
     await new Promise<void>((resolve) => {
-      const next = () => resolve();
+      let nextCalled = false;
+      const next = () => { nextCalled = true; resolve(); };
       const result = handlers[i](req, res, next);
-      // If handler returns a Promise (async), await it, but also resolve via next() for sync middleware
       if (result?.then) {
-        result.then(resolve).catch(resolve);
+        // Async handler - wait for it to finish, then resolve if next() wasn't called
+        result.then(() => { if (!nextCalled) resolve(); }).catch(() => resolve());
+      } else if (!nextCalled) {
+        // Sync handler that didn't call next() - resolve immediately
+        resolve();
       }
     });
   }
@@ -202,7 +219,10 @@ describe('Auth Routes', () => {
 
   describe('GET /me', () => {
     it('should return current user profile when authenticated', async () => {
-      const req = mockAuthRequest();
+      const validToken = generateTestToken();
+      const req = mockAuthRequest({
+        headers: { authorization: `Bearer ${validToken}` },
+      });
       const res = mockResponse();
 
       prismaMock.user.findUnique.mockResolvedValue(createTestUser());
@@ -219,7 +239,10 @@ describe('Auth Routes', () => {
     });
 
     it('should return 401 when not authenticated', async () => {
-      const req = mockAuthRequest({ user: undefined });
+      const req = mockAuthRequest({
+        user: undefined,
+        headers: {}, // No auth header
+      });
       const res = mockResponse();
 
       await simulateRequest('get', '/me', req, res);
@@ -230,7 +253,9 @@ describe('Auth Routes', () => {
 
   describe('PUT /profile', () => {
     it('should update user profile successfully', async () => {
+      const validToken = generateTestToken();
       const req = mockAuthRequest({
+        headers: { authorization: `Bearer ${validToken}` },
         body: { name: 'Updated Name', phone: '+5511999999999' },
       });
       const res = mockResponse();
@@ -252,7 +277,10 @@ describe('Auth Routes', () => {
     });
 
     it('should return 401 when updating profile without auth', async () => {
-      const req = mockAuthRequest({ user: undefined });
+      const req = mockAuthRequest({
+        user: undefined,
+        headers: {}, // No auth header
+      });
       const res = mockResponse();
 
       await simulateRequest('put', '/profile', req, res);

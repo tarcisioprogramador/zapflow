@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import prisma from '../config/database';
 import {
+  authenticate,
   generateToken,
   generateRefreshToken,
   validateRefreshToken,
@@ -245,16 +246,11 @@ router.post('/logout', async (req: AuthRequest, res: Response): Promise<void> =>
   }
 });
 
-// GET /api/auth/me
-router.get('/me', async (req: AuthRequest, res: Response): Promise<void> => {
+// GET /api/auth/me — uses authenticate middleware for token verification
+router.get('/me', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Não autenticado' });
-      return;
-    }
-
     const user = await prisma.user.findUnique({
-      where: { id: req.user.userId },
+      where: { id: req.user!.userId },
       include: { organization: true },
     });
 
@@ -270,13 +266,9 @@ router.get('/me', async (req: AuthRequest, res: Response): Promise<void> => {
 });
 
 // GET /api/auth/trial — status do trial
-router.get('/trial', async (req: AuthRequest, res: Response): Promise<void> => {
+router.get('/trial', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Não autenticado' });
-      return;
-    }
-    const status = await getUserTrialStatus(req.user.userId);
+    const status = await getUserTrialStatus(req.user!.userId);
     res.json(status);
   } catch (error) {
     res.status(500).json({ error: 'Erro ao buscar status do trial' });
@@ -284,17 +276,12 @@ router.get('/trial', async (req: AuthRequest, res: Response): Promise<void> => {
 });
 
 // PUT /api/auth/profile
-router.put('/profile', async (req: AuthRequest, res: Response): Promise<void> => {
+router.put('/profile', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Não autenticado' });
-      return;
-    }
-
     const { name, avatar, phone } = req.body;
 
     const user = await prisma.user.update({
-      where: { id: req.user.userId },
+      where: { id: req.user!.userId },
       data: { name, avatar, phone },
     });
 

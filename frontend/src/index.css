@@ -6,6 +6,11 @@
   * {
     border-color: var(--border-base, rgba(51, 65, 85, 0.5));
   }
+  *,
+  *::before,
+  *::after {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  }
   body {
     @apply bg-dark-950 text-dark-100;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';

@@ -82,6 +82,7 @@ services:
       PORT: "3001"
       NODE_ENV: "development"
       FRONTEND_URL: "http://localhost:5173"
+      # Em produção (Railway): https://app.zapflow.com.br
       # BACKEND_URL é usada para montar URLs de webhook enviadas à Evolution API.
       # Se a Evolution API roda fora do Docker, "localhost:3001" funciona.
       # Se roda em outro container, troque para "http://host.docker.internal:3001"

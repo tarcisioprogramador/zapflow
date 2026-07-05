@@ -20,7 +20,7 @@
 #        as variáveis com valores reais de produção
 #     2. Gere um JWT_SECRET forte: openssl rand -base64 32
 #     3. Certifique-se de que o DNS do domínio aponte para o IP do servidor
-#     4. Configure .env com CADDY_DOMAIN (ex: app.zapflow.com) e CADDY_EMAIL
+#     4. Configure .env com CADDY_DOMAIN (ex: app.zapflow.com.br) e CADDY_EMAIL
 #
 # ─── Arquitetura ──────────────────────────────
 #   Cliente → Caddy (:443 TLS) → Nginx (:80) → Backend (:3001)
@@ -49,7 +49,7 @@ services:
       - "443:443"     # HTTPS (TLS automático)
       - "443:443/udp" # HTTP/3 (QUIC)
     environment:
-      - DOMAIN=${CADDY_DOMAIN:?❌ CADDY_DOMAIN is required (ex: app.zapflow.com)}
+      - DOMAIN=${CADDY_DOMAIN:?❌ CADDY_DOMAIN is required (ex: app.zapflow.com.br)}
       - CADDY_EMAIL=${CADDY_EMAIL:?❌ CADDY_EMAIL is required (ex: admin@zapflow.com)}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
@@ -177,8 +177,8 @@ services:
       REDIS_URL: "redis://default:${REDIS_PASSWORD}@redis:6379"
       NODE_ENV: "production"
       PORT: "3001"
-      # FRONTEND_URL deve ser o domínio público (ex: https://app.zapflow.com)
-      FRONTEND_URL: ${FRONTEND_URL:?❌ FRONTEND_URL is required (ex: https://app.zapflow.com)}
+      # FRONTEND_URL deve ser o domínio público (ex: https://app.zapflow.com.br)
+      FRONTEND_URL: ${FRONTEND_URL:?❌ FRONTEND_URL is required (ex: https://app.zapflow.com.br)}
       # BACKEND_URL pode ser interno se Evolution API estiver na mesma Docker network
       BACKEND_URL: ${BACKEND_URL:-http://backend:3001}
     depends_on:

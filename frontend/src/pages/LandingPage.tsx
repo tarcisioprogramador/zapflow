@@ -1,14 +1,14 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import { paymentsApi } from '../api';
-import { useAuthStore } from '../store';
+import { useAuthStore, useAppStore } from '../store';
 import {
   Zap, MessageSquare, Bot, GitBranch, Columns3, Send,
   Webhook, Users, Check, ChevronDown, Star,
   Smartphone, Play, Brain, Repeat, BotMessageSquare,
   Target, Clock, TrendingUp, X, Phone,
   ShoppingCart, ThumbsUp, HelpCircle, Sparkles, ArrowRight,
-  Radio, Loader2,
+  Radio, Loader2, Sun, Moon,
 } from 'lucide-react';
 
 // ─── Scroll Reveal Hook ─────────────────────────────────
@@ -257,6 +257,8 @@ function BuyButton({ plan, label, className }: { plan: string; label: string; cl
 }
 
 export default function LandingPage() {
+  const { theme, toggleTheme } = useAppStore();
+
   return (
     <div className="min-h-screen bg-dark-950 text-white overflow-hidden">
       {/* ─── Navigation ─────────────────────────────── */}
@@ -277,6 +279,19 @@ export default function LandingPage() {
             <a href="#testimonials" className="text-sm text-dark-400 hover:text-white transition-colors">Depoimentos</a>
             <a href="#faq" className="text-sm text-dark-400 hover:text-white transition-colors">FAQ</a>
           </div>
+          {/* Theme Toggle */}
+          <button
+            onClick={toggleTheme}
+            className="p-2.5 rounded-lg hover:bg-dark-800/50 transition-colors text-dark-400 hover:text-dark-200 border border-dark-700/30"
+            title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+          >
+            {theme === 'dark' ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
+          </button>
+
           <Link
             to="/login"
             className="bg-zap-500 hover:bg-zap-600 text-white font-semibold px-5 py-2.5 rounded-lg transition-all duration-200 shadow-lg shadow-zap-500/20 hover:shadow-zap-500/30 active:scale-[0.98] text-sm btn-glow"

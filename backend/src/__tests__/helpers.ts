@@ -20,6 +20,8 @@ interface PrismaDelegateMock {
   delete: ReturnType<typeof vi.fn>;
   count: ReturnType<typeof vi.fn>;
   upsert: ReturnType<typeof vi.fn>;
+  groupBy: ReturnType<typeof vi.fn>;
+  aggregate: ReturnType<typeof vi.fn>;
 }
 
 interface PrismaMock {
@@ -43,6 +45,7 @@ interface PrismaMock {
   tag: PrismaDelegateMock;
   conversationTag: PrismaDelegateMock;
   refreshToken: PrismaDelegateMock;
+  payment: PrismaDelegateMock;
   $on: ReturnType<typeof vi.fn>;
   $connect: ReturnType<typeof vi.fn>;
   $disconnect: ReturnType<typeof vi.fn>;
@@ -60,6 +63,8 @@ function createDelegateMock(): PrismaDelegateMock {
     delete: vi.fn(),
     count: vi.fn(),
     upsert: vi.fn(),
+    groupBy: vi.fn(),
+    aggregate: vi.fn(),
   };
 }
 
@@ -85,6 +90,7 @@ export function createPrismaMock(): PrismaMock {
     tag: createDelegateMock(),
     conversationTag: createDelegateMock(),
     refreshToken: createDelegateMock(),
+    payment: createDelegateMock(),
     $on: vi.fn(),
     $connect: vi.fn(),
     $disconnect: vi.fn(),
@@ -135,6 +141,8 @@ export function mockAuthRequest(overrides: Partial<any> = {}) {
     query: {},
     body: {},
     headers: { authorization: 'Bearer test-token' },
+    get: vi.fn().mockReturnValue('localhost:3001'),
+    protocol: 'https',
     app: { get: vi.fn().mockReturnValue(null) },
     ip: '127.0.0.1',
     socket: { remoteAddress: '127.0.0.1' },

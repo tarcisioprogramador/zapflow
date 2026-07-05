@@ -182,6 +182,19 @@
 /* Landing page specific */
 [data-theme="light"] a.text-dark-400 { color: var(--text-muted); }
 [data-theme="light"] a.text-dark-400:hover { color: var(--text-primary); }
+[data-theme="light"] .bg-dark-950\/80 { background-color: color-mix(in srgb, var(--bg-body) 95%, transparent); }
+[data-theme="light"] .chat-bubble div { color: var(--text-secondary); }
+[data-theme="light"] .gradient-border-card {
+  background: var(--bg-card);
+}
+[data-theme="light"] .pricing-card-popular {
+  background: color-mix(in srgb, var(--bg-card) 95%, transparent);
+}
+[data-theme="light"] .section-divider {
+  background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+}
+[data-theme="light"] footer .text-dark-500 { color: var(--text-muted); }
+[data-theme="light"] footer .text-dark-600 { color: var(--text-faint); }
 
 /* ─── Scroll Reveal Animations ────────────────────── */
 .reveal {

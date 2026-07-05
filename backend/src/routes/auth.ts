@@ -206,13 +206,13 @@ router.post('/refresh', async (req: AuthRequest, res: Response): Promise<void> =
     const accessToken = generateToken(newPayload);
     setAccessTokenCookie(res, accessToken);
 
-    await generateRefreshToken(newPayload, res, {
+    const newRefreshToken = await generateRefreshToken(newPayload, res, {
       oldTokenId: tokenRecord?.id,
     });
 
     res.json({
       token: accessToken,
-      refreshToken,
+      refreshToken: newRefreshToken,
       user: buildUserResponse(user),
     });
   } catch (error) {

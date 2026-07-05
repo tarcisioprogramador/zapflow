@@ -7,6 +7,31 @@ import { Prisma } from '../generated/prisma/client';
 const router = Router();
 router.use(authenticate);
 
+// ─── Static routes MUST come before /:id to avoid :id catching them ──
+
+// POST /api/tags - Create tag
+router.post('/tags', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { name, color } = req.body;
+    const tag = await prisma.tag.create({ data: { name, color } });
+    res.status(201).json(tag);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao criar tag' });
+  }
+});
+
+// GET /api/tags - List tags
+router.get('/tags', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const tags = await prisma.tag.findMany({ orderBy: { name: 'asc' } });
+    res.json(tags);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao listar tags' });
+  }
+});
+
+// ─── Conversations ────────────────────────────────────────
+
 // GET /api/conversations - List conversations
 router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -139,27 +164,6 @@ router.delete('/:id/tags/:tagId', async (req: AuthRequest, res: Response): Promi
     res.json({ message: 'Tag removida' });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao remover tag' });
-  }
-});
-
-// POST /api/tags - Create tag
-router.post('/tags', async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { name, color } = req.body;
-    const tag = await prisma.tag.create({ data: { name, color } });
-    res.status(201).json(tag);
-  } catch (error) {
-    res.status(500).json({ error: 'Erro ao criar tag' });
-  }
-});
-
-// GET /api/tags - List tags
-router.get('/tags', async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const tags = await prisma.tag.findMany({ orderBy: { name: 'asc' } });
-    res.json(tags);
-  } catch (error) {
-    res.status(500).json({ error: 'Erro ao listar tags' });
   }
 });
 

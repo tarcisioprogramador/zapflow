@@ -66,8 +66,8 @@ export default function LeadCaptureForm({
 
     setLoading(true);
     try {
-      const API_URL = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${API_URL}/tracking/lead`, {
+      // Always use relative path (same-origin) — VITE_API_URL is only for dev proxy
+      const response = await fetch('/api/tracking/lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

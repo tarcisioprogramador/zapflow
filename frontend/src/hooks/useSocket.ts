@@ -9,7 +9,9 @@ export function useSocket() {
   useEffect(() => {
     if (!token) return;
 
-    const serverUrl = import.meta.env.VITE_API_URL || window.location.origin;
+    // Always use window.location.origin for WebSocket (same-server deployment)
+    // VITE_API_URL is only for API proxy in local dev, not for WebSocket
+    const serverUrl = window.location.origin;
     const socket = io(serverUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],

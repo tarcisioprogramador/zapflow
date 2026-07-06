@@ -263,6 +263,7 @@ export async function createSubscription(params: {
       },
       payer_email: params.payerEmail,
       back_url: params.backUrl,
+      notification_url: `${new URL(params.backUrl).origin}/api/webhook/mercadopago`,
       external_reference: JSON.stringify({
         userId: params.userId,
         organizationId: params.organizationId,

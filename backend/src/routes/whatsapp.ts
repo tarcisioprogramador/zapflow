@@ -27,6 +27,17 @@ const router = Router();
 // Evolution API posts incoming messages here
 const webhookRouter = Router();
 
+// Dedicated rate limiter for the public webhook endpoint (abuse protection)
+import rateLimit from 'express-rate-limit';
+const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 req/min — enough for normal WhatsApp traffic, prevents abuse
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas requisições no webhook. Tente novamente em instantes.' },
+});
+webhookRouter.use(webhookLimiter);
+
 webhookRouter.post('/evolution', async (req: any, res: Response): Promise<void> => {
   try {
     const payload = req.body;

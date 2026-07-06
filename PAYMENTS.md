@@ -1,4 +1,4 @@
-# 💳 Sistema de Pagamento — ZapFlow
+# Sistema de Pagamento — ZapFlow
 
 ## Sumário
 
@@ -7,10 +7,11 @@
 3. [Configuração do Mercado Pago](#3-configuração-do-mercado-pago)
 4. [Modelo de Dados](#4-modelo-de-dados)
 5. [API Endpoints](#5-api-endpoints)
-6. [Fluxo Completo](#6-fluxo-completo)
-7. [Segurança](#7-segurança)
-8. [Monitoramento](#8-monitoramento)
-9. [Deploy](#9-deploy)
+6. [Cupons de Desconto](#6-cupons-de-desconto)
+7. [Fluxo Completo](#7-fluxo-completo)
+8. [Segurança](#8-segurança)
+9. [Monitoramento e Logs](#9-monitoramento-e-logs)
+10. [Deploy](#10-deploy)
 
 ---
 
@@ -18,40 +19,32 @@
 
 O ZapFlow utiliza **Mercado Pago** como gateway de pagamento com suporte a:
 
-- ✅ Assinaturas recorrentes (mensal) via PreApproval
-- ✅ **PIX** (pagamento instantâneo — já nativo!)
-- ✅ Cartão de crédito (até 1 parcela)
-- ✅ Boleto bancário
-- ✅ Checkout Pro (redirecionamento para página segura do Mercado Pago)
-- ✅ Webhooks com status de pagamento e assinatura
-- ✅ Histórico completo de transações
-- ✅ 3 planos: **IA Starter (R$97)**, **IA Pro (R$197)**, **Enterprise (R$497)**
-- ✅ Suporte a teste gratuito de 7 dias
+- Assinaturas recorrentes (mensal) via PreApproval
+- **PIX** (pagamento instantâneo)
+- Cartão de crédito (até 1 parcela)
+- Boleto bancário
+- Checkout Pro (redirecionamento para página segura do Mercado Pago)
+- Webhooks com idempotência e validação de assinatura HMAC-SHA256
+- Histórico completo de transações
+- **Sistema de cupons de desconto** (% ou valor fixo)
+- **Cancelamento de assinatura via dashboard**
+- 3 planos: **IA Starter (R$97)**, **IA Pro (R$197)**, **Enterprise (R$497)**
+- Teste gratuito de 7 dias
 
 ---
 
 ## 2. Pré-requisitos
 
 ```bash
-# Mercado Pago SDK já está no package.json:
 cd backend
-npm install mercadopago
+npm install
 ```
 
-### Variáveis de ambiente necessárias (.env)
+### Variáveis de ambiente (.env)
 
 ```env
-# ─── Mercado Pago (Payment Processing) ───────────────────────
-# 1. Crie sua conta em https://www.mercadopago.com.br/registration-mp
-# 2. Vá em: Seu negócio > Configurações > Credenciais
-# 3. Copie as chaves abaixo (modo produção)
 MP_ACCESS_TOKEN="APP_USR-..."
 MP_PUBLIC_KEY="APP_USR-..."
-
-# 4. Vá em: Seu negócio > Configurações > Webhooks
-#    URL: https://SEU-DOMINIO/api/webhook/mercadopago
-#    Eventos: payment, subscription_preapproval
-# 5. (Opcional) Copie um secret para validar notificações
 MP_WEBHOOK_SECRET="..."
 ```
 
@@ -59,131 +52,111 @@ MP_WEBHOOK_SECRET="..."
 
 ## 3. Configuração do Mercado Pago
 
-### Passo 1: Criar conta no Mercado Pago
+### Passo 1: Criar conta
 
-1. Acesse [mercadopago.com.br/registration-mp](https://www.mercadopago.com.br/registration-mp)
-2. Pode criar como **Pessoa Física (CPF)** — não precisa de CNPJ!
-3. Complete o cadastro
+Acesse [mercadopago.com.br/registration-mp](https://www.mercadopago.com.br/registration-mp)
 
-### Passo 2: Obter chaves de API
+### Passo 2: Obter chaves
 
-1. Acesse **Seu negócio > Configurações > Credenciais**
-2. Copie o **Access Token** (`APP_USR-...`) e a **Public Key** (`APP_USR-...`)
-3. Adicione no `.env`:
-   ```env
-   MP_ACCESS_TOKEN=APP_USR-...
-   MP_PUBLIC_KEY=APP_USR-...
-   ```
+1. **Seu negócio > Configurações > Credenciais**
+2. Copie **Access Token** e **Public Key**
 
-### Passo 3: Verificar configuração
+### Passo 3: Configurar Webhook
+
+1. **Seu negócio > Configurações > Webhooks**
+2. URL: `https://SEU-DOMINIO/api/webhook/mercadopago`
+3. Eventos: `payment`, `subscription_preapproval`
+4. (Opcional) Configure um secret para validação HMAC
+
+### Passo 4: Verificar
 
 ```bash
-curl http://localhost:3001/api/payments/status \
-  -H "Authorization: Bearer SEU_TOKEN"
+curl http://localhost:3001/api/payments/status -H "Authorization: Bearer SEU_TOKEN"
 ```
-
-**Resposta esperada:**
-```json
-{
-  "configured": true,
-  "canCheckout": true,
-  "keys": { "accessToken": true, "publicKey": true, "webhookSecret": false },
-  "missingKeys": ["MP_WEBHOOK_SECRET"],
-  "nextStep": "Configurar webhook no Mercado Pago Developer Dashboard"
-}
-```
-
-### Passo 4: Configurar Webhook
-
-1. No Mercado Pago: **Seu negócio > Configurações > Webhooks**
-2. Clique em **"Adicionar Webhook"**
-3. **URL:** `https://SEU-DOMINIO/api/webhook/mercadopago`
-4. **Eventos para escutar:**
-   - `payment` — notificações de pagamento (PIX, cartão, boleto)
-   - `subscription_preapproval` — notificações de assinatura (renovação, cancelamento)
-
-> **Diferente do Stripe:** o Mercado Pago não exige um signing secret obrigatório para webhooks. O campo `MP_WEBHOOK_SECRET` é opcional.
-
-### Passo 5: Testar com cartão de testes
-
-Use os cartões de teste do Mercado Pago:
-- **Mastercard:** `5031 4332 1540 6351` — CVV: `123` — Vencimento: `11/25`
-- **Visa:** `4235 6477 2802 5682` — CVV: `123` — Vencimento: `11/25`
-- **PIX:** Gere o QR Code e pague (simulado no Sandbox)
 
 ---
 
 ## 4. Modelo de Dados
 
-### Tabela: Payment
+### Payment
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
 | `id` | UUID | Identificador único |
-| `stripePaymentIntentId` | String? | ID do pagamento no Mercado Pago (reusa campo legado) |
-| `stripeInvoiceId` | String? | Reservado para fatura |
-| `stripeSubscriptionId` | String? | ID da PreApproval (assinatura) no Mercado Pago |
-| `amount` | Int | Valor em centavos (R$97,00 = 9700) |
-| `currency` | String | Moeda (padrão: "brl") |
+| `mpPaymentIntentId` | String? | ID do pagamento no MP |
+| `mpInvoiceId` | String? | ID da fatura no MP |
+| `mpSubscriptionId` | String? | ID da assinatura no MP |
+| `amount` | Int | Valor pago em centavos |
+| `originalAmount` | Int? | Valor original antes do desconto |
+| `discountAmount` | Int? | Valor do desconto aplicado |
+| `couponCode` | String? | Cupom utilizado |
 | `status` | String | pending, succeeded, failed, refunded |
 | `plan` | String | STARTER, PRO, ENTERPRISE |
-| `description` | String? | Descrição do pagamento |
-| `periodStart` | DateTime? | Início do período de cobrança |
-| `periodEnd` | DateTime? | Fim do período de cobrança |
-| `createdAt` | DateTime | Data do pagamento |
-| `organizationId` | UUID | FK para Organization |
 
-### Tabela: Organization (campos de pagamento)
+### Organization (campos de pagamento)
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
-| `stripeCustomerId` | String? | Email do pagador (reusa campo legado) |
-| `stripeSubscriptionId` | String? | ID da PreApproval (assinatura) no Mercado Pago |
-| `stripeSubscriptionStatus` | String? | Status: active, authorized, cancelled, paused |
-| `stripeCurrentPeriodEnd` | DateTime? | Fim do período atual |
+| `mpCustomerId` | String? | ID do cliente no Mercado Pago |
+| `mpSubscriptionId` | String? | ID da assinatura no MP |
+| `mpSubscriptionStatus` | String? | Status da assinatura (authorized, paused, cancelled) |
+| `mpCurrentPeriodEnd` | DateTime? | Fim do período atual |
 
-> **Nota:** Os campos continuam com prefixo `stripe` no banco para evitar migração de schema. O serviço reusa esses campos para armazenar dados do Mercado Pago.
+### Coupon
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `code` | String | Código do cupom (unique, uppercase) |
+| `discountType` | String | "percentage" ou "fixed" |
+| `discountValue` | Float | Ex: 20 para 20% ou 5000 para R$50 |
+| `minValue` | Int? | Valor mínimo do pedido (cents) |
+| `maxUses` | Int? | Limite total de usos |
+| `maxUsesPerUser` | Int? | Limite por usuário |
+| `appliesToPlans` | String? | JSON array de planos |
+| `startsAt` / `expiresAt` | DateTime? | Período de validade |
+| `isActive` | Boolean | Ativar/desativar |
+
+### WebhookEvent
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `source` | String | "mercadopago" |
+| `eventId` | String? | Chave de idempotência |
+| `eventType` | String | payment, subscription_preapproval |
+| `dataId` | String? | ID do recurso no MP |
+| `status` | String | received, processing, processed, failed |
+| `requestBody` / `responseBody` | String? | Payload JSON |
+| `errorMessage` | String? | Erro se houver |
 
 ---
 
 ## 5. API Endpoints
 
-### 5.1. Configuração
+### 5.1. Validação com Zod
+
+Todas as rotas de pagamento e cupons validam o corpo da requisição com schemas Zod:
+
+| Schema | Campos validados |
+|--------|-----------------|
+| `publicCheckoutSchema` | `plan` (enum: STARTER, PRO, ENTERPRISE), `couponCode` (opcional) |
+| `authCheckoutSchema` | `plan` (enum), `couponCode` (opcional) |
+| `validateCouponSchema` | `code` (string min 1), `plan` (string opcional), `amount` (int positivo opcional) |
+| `createCouponSchema` | `code`, `discountType`, `discountValue`, `maxUses`, `maxUsesPerUser`, `appliesToPlans`, etc. |
+| `updateCouponSchema` | Todos opcionais: `description`, `discountType`, `discountValue`, `isActive`, etc. |
+
+Erros de validação retornam `400` com mensagem em português:
+```json
+{ "error": "Plano inválido. Escolha STARTER, PRO ou ENTERPRISE." }
+```
+
+### 5.2. Configuração
 
 ```http
 GET /api/payments/config
 Authorization: Bearer <token>
 ```
 
-**Resposta:**
-```json
-{
-  "publicKey": "APP_USR-...",
-  "plans": [
-    { "id": "STARTER", "name": "IA Starter", "amount": 9700 },
-    { "id": "PRO", "name": "IA Pro", "amount": 19700 },
-    { "id": "ENTERPRISE", "name": "Enterprise", "amount": 49700 }
-  ]
-}
-```
-
-```http
-GET /api/payments/status
-Authorization: Bearer <token>
-```
-
-**Resposta:**
-```json
-{
-  "configured": true,
-  "canCheckout": true,
-  "keys": { "accessToken": true, "publicKey": true, "webhookSecret": false },
-  "missingKeys": [],
-  "nextStep": "Pronto para vender!"
-}
-```
-
-### 5.2. Checkout (Assinatura)
+### 5.3. Checkout (Assinatura)
 
 ```http
 POST /api/payments/create-checkout
@@ -191,235 +164,262 @@ Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "plan": "PRO"
+  "plan": "PRO",
+  "couponCode": "WELCOME10"
 }
 ```
 
 **Resposta:**
 ```json
 {
-  "url": "https://www.mercadopago.com.br/subscriptions/preapproval/...",
-  "preferenceId": "preapp_xxx"
+  "url": "https://www.mercadopago.com.br/...",
+  "preapprovalId": "preapp_xxx",
+  "originalAmount": 19700,
+  "discountAmount": 1970,
+  "finalAmount": 17730
 }
 ```
 
-> O usuário é redirecionado para esta URL. Após aprovar a assinatura, é redirecionado de volta para `/payment/success?preapproval_id=preapp_xxx`.
-
-### 5.3. Verificar Pagamento / Assinatura
+### 5.4. Checkout Avulso (PIX/Cartão/Boleto)
 
 ```http
-GET /api/payments/session/:paymentIdOrPreapprovalId
+POST /api/payments/create-one-time-pix
 Authorization: Bearer <token>
-```
+Content-Type: application/json
 
-**Resposta (pagamento):**
-```json
-{
-  "status": "complete",
-  "customerEmail": "cliente@email.com",
-  "plan": "PRO"
-}
-```
-
-**Resposta (assinatura/preapproval):**
-```json
-{
-  "status": "active",
-  "plan": null,
-  "subscriptionId": "preapp_xxx"
-}
-```
-
-### 5.4. Status da Assinatura
-
-```http
-GET /api/payments/subscription
-Authorization: Bearer <token>
-```
-
-**Resposta:**
-```json
 {
   "plan": "PRO",
-  "planName": "IA Pro",
-  "amount": 19700,
-  "hasSubscription": true,
-  "subscriptionId": "preapp_xxx",
-  "subscriptionStatus": "active",
-  "currentPeriodEnd": "2025-08-15T00:00:00.000Z",
-  "daysRemaining": 28
+  "couponCode": "WELCOME10"
 }
 ```
 
-### 5.5. Histórico de Pagamentos
+### 5.5. Checkout Público (sem auth)
 
 ```http
-GET /api/payments/history?page=1&limit=10
-Authorization: Bearer <token>
-```
-
-**Resposta:**
-```json
-{
-  "payments": [
-    {
-      "id": "uuid",
-      "amount": 19700,
-      "currency": "brl",
-      "status": "succeeded",
-      "plan": "PRO",
-      "description": "Pagamento PRO",
-      "periodStart": "2025-07-01T00:00:00.000Z",
-      "periodEnd": "2025-08-01T00:00:00.000Z",
-      "createdAt": "2025-07-01T10:30:00.000Z"
-    }
-  ],
-  "pagination": {
-    "page": 1,
-    "limit": 10,
-    "total": 5,
-    "totalPages": 1
-  }
-}
-```
-
-### 5.6. Faturas
-
-```http
-GET /api/payments/invoices
-Authorization: Bearer <token>
-```
-
-**Resposta:**
-```json
-[
-  {
-    "id": "uuid",
-    "invoiceNumber": "Fatura #abc12345",
-    "amount": 19700,
-    "currency": "brl",
-    "status": "paid",
-    "plan": "PRO",
-    "periodStart": "2025-07-01T00:00:00.000Z",
-    "periodEnd": "2025-08-01T00:00:00.000Z",
-    "paidAt": "2025-07-01T10:30:00.000Z",
-    "downloadUrl": null
-  }
-]
-```
-
-### 5.7. Gerenciar Assinatura (Portal)
-
-```http
-POST /api/payments/portal
-Authorization: Bearer <token>
-```
-
-**Resposta:**
-```json
-{
-  "url": "https://www.mercadopago.com.br/subscriptions"
-}
-```
-
-> Redireciona o usuário para o Mercado Pago onde pode gerenciar a assinatura.
-
-### 5.8. Webhook (público)
-
-```http
-POST /api/webhook/mercadopago
+POST /api/payments/public-checkout
 Content-Type: application/json
+
+{
+  "plan": "PRO",
+  "couponCode": "WELCOME10"
+}
 ```
 
-> Este endpoint é chamado pelo Mercado Pago automaticamente. Não requer autenticação.
+### 5.6. Validar Cupom
 
-**Tipos de notificação processados:**
-- `payment` — pagamento aprovado, rejeitado ou cancelado
-- `subscription_preapproval` — assinatura autorizada, cancelada ou pausada
+```http
+POST /api/payments/validate-coupon
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "code": "WELCOME10",
+  "plan": "PRO"
+}
+```
+
+**Resposta (válido):**
+```json
+{
+  "valid": true,
+  "coupon": { "id": "...", "code": "WELCOME10", "discountType": "percentage", "discountValue": 10 },
+  "discountAmount": 1970,
+  "finalAmount": 17730
+}
+```
+
+**Resposta (inválido):**
+```json
+{
+  "valid": false,
+  "reason": "Cupom expirado"
+}
+```
+
+### 5.7. Cancelar Assinatura
+
+```http
+POST /api/payments/cancel
+Authorization: Bearer <token>
+```
+
+**Resposta:**
+```json
+{ "canceled": true }
+```
+
+### 5.8. Gerenciar Cupons (Admin)
+
+```http
+POST   /api/payments/coupons          # Criar cupom
+GET    /api/payments/coupons          # Listar cupons
+PUT    /api/payments/coupons/:id      # Atualizar cupom
+DELETE /api/payments/coupons/:id      # Excluir cupom
+```
+
+Requires `OWNER` or `ADMIN` role.
+
+**Exemplo de criação:**
+```json
+{
+  "code": "BLACKFRIDAY30",
+  "description": "30% off na Black Friday",
+  "discountType": "percentage",
+  "discountValue": 30,
+  "maxUses": 100,
+  "expiresAt": "2026-12-01T00:00:00Z",
+  "appliesToPlans": ["STARTER", "PRO", "ENTERPRISE"]
+}
+```
+
+### 5.9. Logs de Webhook (Admin)
+
+```http
+GET /api/payments/webhook-events?page=1&limit=20
+Authorization: Bearer <token>
+```
+
+### 5.10. Subscription Info & History
+
+```http
+GET /api/payments/subscription       # Status da assinatura atual
+GET /api/payments/history?page=1     # Histórico de pagamentos
+GET /api/payments/invoices           # Faturas
+POST /api/payments/portal            # Link para gerenciar no MP
+GET /api/payments/session/:id        # Verificar pagamento/preapproval
+```
 
 ---
 
-## 6. Fluxo Completo
+## 6. Cupons de Desconto
 
-### Fluxo: Usuário → Assinatura → Upgrade
+### Tipos de desconto
 
-```
-1. LandingPage → Cliente clica "Escolher Starter/Pro"
-2. Página de Cadastro → Cria conta (ganha 7 dias de trial grátis)
-3. Dashboard → Navega para Configurações > Plano
-4. Clica "Fazer Upgrade" em um dos planos
-5. Redirecionado para Mercado Pago (página segura de assinatura)
-6. Cliente aprova assinatura (PIX, cartão ou boleto)
-7. Mercado Pago redireciona para /payment/success?preapproval_id=preapp_xxx
-8. Frontend verifica: GET /api/payments/session/:preapprovalId
-9. Webhook Mercado Pago → POST /api/webhook/mercadopago
-   - subscription_preapproval: Atualiza plano do usuário
-10. Dashboard agora mostra o plano ativo com data de renovação
-11. Pagamentos futuros:
-    - Mercado Pago cobra automaticamente a cada mês
-    - payment (approved): Grava pagamento no histórico
-    - subscription_preapproval (cancelled): Rebaixa para FREE
-```
+- **percentage**: percentual (`discountValue = 10` = 10%)
+- **fixed**: valor fixo em centavos (`discountValue = 1000` = R$10)
 
-### Fluxo de Upgrade de Plano
+### Validação automática
 
-```
-1. Usuário acessa Configurações > Plano
-2. Clica "Fazer Upgrade" no plano desejado
-3. Mercado Pago cria nova assinatura e redireciona
-4. Webhook processa subscription_preapproval (authorized)
-5. Plano atualizado no banco
-```
+O sistema valida:
+- Se o cupom existe e está ativo
+- Se não expirou
+- Se não atingiu o limite de usos (`maxUses`)
+- Se o plano é elegível (`appliesToPlans`)
+- Se o valor mínimo do pedido foi atingido (`minValue`)
 
-### Fluxo de Cancelamento
+### Onde usar
+
+- No dashboard (SettingsPage) — input de cupom nos cards de plano (`CouponInput`)
+- Na landing page (LandingPage) — campo `CouponField` + `couponCode` nos `BuyButton` e `PixBuyButton`
+- Via API — campo `couponCode` nos endpoints de checkout
+
+---
+
+## 7. Fluxo Completo
+
+### Upgrade com cupom
 
 ```
-1. Usuário clica "Gerenciar Assinatura" → Mercado Pago
-2. Cancela a assinatura no Mercado Pago
-3. Webhook: subscription_preapproval (cancelled)
-4. Plano do usuário é rebaixado para FREE
+1. Dashboard > Configurações > Plano
+2. Usuário digita cupom no campo "CUPOM" do card desejado
+3. Frontend valida via POST /api/payments/validate-coupon
+4. Se válido, mostra o desconto
+5. Clica "Fazer Upgrade"
+6. POST /api/payments/create-checkout com couponCode
+7. Mercado Pago cria PreApproval com valor com desconto
+8. Webhook subscription_preapproval (authorized) → ativa plano
+```
+
+### Cancelamento
+
+```
+1. Dashboard > Configurações > Plano > "Cancelar Assinatura"
+2. Modal de confirmação
+3. POST /api/payments/cancel
+4. Cancela no Mercado Pago + rebaixa para FREE no banco
 ```
 
 ---
 
-## 7. Segurança
+## 8. Segurança
 
-### Webhook Processing
+### Webhook
+
+- **Validação de assinatura**: HMAC-SHA256 com `MP_WEBHOOK_SECRET`
+- **Anti-replay**: timestamp ≤ 5 minutos
+- **Idempotência**: evento já processado é ignorado (pelo `data.id` nos últimos 60s)
+- **Log completo**: todo evento recebido é registrado em `WebhookEvent`
+
+### APIs
+
+- JWT obrigatório (exceto `public-checkout` e webhook)
+- Rate limiting por IP (100 req/min global, 60 req/min no `/api/webhook/evolution`)
+- Validação de corpo com **Zod** em todas as rotas de pagamento e cupons
+- Validação de email no `linkPaymentToUser` (impede linking fraudulenta)
+- Apenas `OWNER`/`ADMIN` podem gerenciar cupons
+- **CSP**: `script-src 'self'` (sem `unsafe-inline`/`unsafe-eval`) — Helmet config
+
+---
+
+## 9. Monitoramento e Logs
+
+### Estrutura de Logs
 
 ```typescript
-// backend/src/services/payment.ts
-// O Mercado Pago envia notificações via POST sem assinatura obrigatória
-// O webhook é público e processa eventos de pagamento e assinatura
-await handleWebhookNotification(req.body);
+console.log(`[Mercado Pago] Webhook signature verified ✓ (data.id=...)`);
+console.log(`[Mercado Pago] Payment approved for org ... (cupom: WELCOME10)`);
+console.log(`[Mercado Pago] Event ... already processed — skipping (idempotency)`);
+console.log(`[Payment] Recorded: succeeded - PRO - R$ 177,30`);
+console.log(`[WebhookEvents] Created log: ...`);
 ```
 
-### Autenticação em endpoints protegidos
+### WebhookEvent (tabela de auditoria)
 
-```typescript
-// backend/src/routes/payments.ts
-router.use(authenticate); // JWT middleware
-```
+Toda notificação recebida é registrada com:
+- Payload completo (`requestBody`)
+- Resultado do processamento (`responseBody`)
+- Status e erro se houver
+- Timestamps de recebimento e processamento
 
 ---
 
-## 8. Monitoramento
+## 10. Deploy
 
-### Logs Estruturados
+### Banco de Dados
 
-```typescript
-console.log(`[Mercado Pago] Processing notification: ${type}/${action}`);
-console.log(`[Mercado Pago] Payment approved for org ${organizationId}`);
-console.log(`[Payment] Recorded: ${status} - ${plan} - R$ ${(amount/100).toFixed(2)}`);
+O schema Prisma suporta dois providers:
+
+| Provider | Uso | DATABASE_URL |
+|----------|-----|-------------|
+| `sqlite` | Desenvolvimento local | `file:./dev.db` |
+| `postgresql` | Produção (Railway, Render, etc.) | `postgresql://user:pass@host:5432/zapflow` |
+
+Para alternar, edite `backend/prisma/schema.prisma`:
+```prisma
+datasource db {
+  provider = "sqlite"    // ou "postgresql"
+  url      = env("DATABASE_URL")
+}
 ```
 
----
+**Local (SQLite):**
+```bash
+cd backend
+npx prisma db push --accept-data-loss   # sincroniza schema
+```
 
-## 9. Deploy
+**Produção (PostgreSQL) — gerar migração e aplicar:**
+```bash
+cd backend
+npx prisma migrate dev --name rename_stripe_to_mp   # criar migration
+npx prisma migrate deploy                            # aplicar
+```
 
-### Railway
+### Variáveis de Ambiente
 
 ```bash
-# Configurar variáveis
+railway variables set DATABASE_URL=postgresql://...
+railway variables set JWT_SECRET=...
 railway variables set MP_ACCESS_TOKEN=APP_USR-...
 railway variables set MP_PUBLIC_KEY=APP_USR-...
 railway variables set MP_WEBHOOK_SECRET=...
@@ -428,7 +428,6 @@ railway variables set MP_WEBHOOK_SECRET=...
 ### Docker
 
 ```yaml
-# docker-compose.yml (já configurado)
 services:
   backend:
     environment:
@@ -443,38 +442,23 @@ services:
 
 ```
 backend/
-├── prisma/
-│   └── schema.prisma              # Modelo Payment + Organization fields
+├── prisma/schema.prisma          # Payment, Coupon, WebhookEvent
 ├── src/
-│   ├── config/
-│   │   └── database.ts            # PrismaClient singleton
-│   ├── middleware/
-│   │   ├── auth.ts                # Autenticação JWT
-│   │   └── plan.ts                # Verificação de limites do plano
-│   ├── routes/
-│   │   └── payments.ts            # Endpoints de pagamento + webhook
+│   ├── routes/payments.ts        # Todos os endpoints de pagamento + cupons
 │   ├── services/
-│   │   ├── payment.ts             # Lógica Mercado Pago + recordPayment()
-│   │   └── trial.ts               # Gerenciamento de trial grátis
-│   └── types/
-│       └── index.ts               # Tipos PlanName, PLAN_LIMITS
+│   │   ├── payment.ts            # Núcleo Mercado Pago + cupons
+│   │   ├── coupon.ts             # CRUD + validação de cupons
+│   │   └── webhook-events.ts     # Idempotência + auditoria
+│   └── middleware/plan.ts        # Limites por plano
 frontend/
 ├── src/
-│   ├── api/
-│   │   └── index.ts               # paymentsApi (getHistory, getInvoices)
-│   ├── components/
-│   │   └── PlanComparison.tsx      # Tabela de comparação de planos
-│   ├── pages/
-│   │   ├── SettingsPage.tsx        # Upgrade + assinatura + histórico + setup MP
-│   │   ├── PaymentSuccessPage.tsx  # Pós-pagamento confirmado (PIX/cartão/boleto)
-│   │   ├── PaymentCancelPage.tsx   # Pagamento cancelado
-│   │   └── LandingPage.tsx         # Pricing com CTAs para planos
-│   └── types/
-│       └── index.ts               # PaymentRecord, SubscriptionInfo
+│   ├── api/index.ts              # paymentsApi com cupons
+│   ├── pages/SettingsPage.tsx    # Upgrade + cupom + cancelamento
+│   └── pages/PaymentSuccessPage.tsx
 ```
 
 ---
 
 ## Última atualização
 
-Julho 2026 — ZapFlow v1.0 — Migrado de Stripe para Mercado Pago
+Julho 2026 — ZapFlow v1.0 — Mercado Pago + Cupons + Zod Validation + CSP + Rate Limit + Landing com cupom

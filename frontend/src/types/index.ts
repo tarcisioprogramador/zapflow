@@ -163,6 +163,9 @@ export interface RemarketingSequence {
 export interface PaymentRecord {
   id: string;
   amount: number;
+  originalAmount: number | null;
+  discountAmount: number | null;
+  couponCode: string | null;
   currency: string;
   status: 'pending' | 'succeeded' | 'failed' | 'refunded';
   plan: string;

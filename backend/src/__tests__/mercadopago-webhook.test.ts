@@ -270,8 +270,8 @@ describe('handleWebhookNotification() — payment events', () => {
       expect.objectContaining({
         where: { id: 'test-org-id' },
         data: expect.objectContaining({
-          stripeCustomerId: 'cliente@email.com',
-          stripeSubscriptionStatus: 'active',
+          mpCustomerId: 'cliente@email.com',
+          mpSubscriptionStatus: 'active',
           plan: 'PRO',
         }),
       })
@@ -420,8 +420,9 @@ describe('handleWebhookNotification() — subscription events', () => {
       expect.objectContaining({
         where: { id: 'test-org-id' },
         data: {
-          stripeSubscriptionId: 'preapp_test_123',
-          stripeSubscriptionStatus: 'active',
+          mpSubscriptionId: 'preapp_test_123',
+          mpSubscriptionStatus: 'active',
+          plan: 'PRO',
         },
       })
     );
@@ -442,7 +443,7 @@ describe('handleWebhookNotification() — subscription events', () => {
     expect(prismaMock.organization.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          stripeSubscriptionStatus: 'active',
+          mpSubscriptionStatus: 'active',
         }),
       })
     );
@@ -463,7 +464,7 @@ describe('handleWebhookNotification() — subscription events', () => {
 
     expect(prismaMock.organization.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { stripeSubscriptionStatus: 'canceled' },
+        data: { mpSubscriptionStatus: 'canceled' },
       })
     );
 
@@ -489,7 +490,7 @@ describe('handleWebhookNotification() — subscription events', () => {
 
     expect(prismaMock.organization.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { stripeSubscriptionStatus: 'paused' },
+        data: { mpSubscriptionStatus: 'paused' },
       })
     );
 

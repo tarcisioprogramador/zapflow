@@ -219,17 +219,26 @@ export const usersApi = {
 };  // Payments
 export const paymentsApi = {
   getConfig: () => api.get('/payments/config'),
-  createCheckout: (data: { plan: string }) => api.post('/payments/create-checkout', data),
-  createOneTimePix: (data: { plan: string }) => api.post('/payments/create-one-time-pix', data),
-  publicCheckout: (data: { plan: string }) => api.post('/payments/public-checkout', data),
+  createCheckout: (data: { plan: string; couponCode?: string }) => api.post('/payments/create-checkout', data),
+  createOneTimePix: (data: { plan: string; couponCode?: string }) => api.post('/payments/create-one-time-pix', data),
+  publicCheckout: (data: { plan: string; couponCode?: string }) => api.post('/payments/public-checkout', data),
   getSession: (id: string) => api.get(`/payments/session/${id}`),
   getSubscription: () => api.get('/payments/subscription'),
   createPortal: () => api.post('/payments/portal'),
+  cancelSubscription: () => api.post('/payments/cancel'),
   getStatus: () => api.get('/payments/status'),
   setupProducts: () => api.post('/payments/setup-products'),
   getHistory: (params?: { page?: number; limit?: number }) =>
     api.get('/payments/history', { params }),
   getInvoices: () => api.get('/payments/invoices'),
+  validateCoupon: (data: { code: string; plan: string }) =>
+    api.post('/payments/validate-coupon', data),
+  createCoupon: (data: any) => api.post('/payments/coupons', data),
+  listCoupons: () => api.get('/payments/coupons'),
+  updateCoupon: (id: string, data: any) => api.put(`/payments/coupons/${id}`, data),
+  deleteCoupon: (id: string) => api.delete(`/payments/coupons/${id}`),
+  getWebhookEvents: (params?: { page?: number; limit?: number }) =>
+    api.get('/payments/webhook-events', { params }),
 };
 
 

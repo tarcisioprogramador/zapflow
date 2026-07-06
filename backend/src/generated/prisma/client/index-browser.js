@@ -116,9 +116,6 @@ Prisma.NullTypes = {
  */
 
 exports.Prisma.TransactionIsolationLevel = makeStrictEnum({
-  ReadUncommitted: 'ReadUncommitted',
-  ReadCommitted: 'ReadCommitted',
-  RepeatableRead: 'RepeatableRead',
   Serializable: 'Serializable'
 });
 
@@ -155,10 +152,10 @@ exports.Prisma.OrganizationScalarFieldEnum = {
   name: 'name',
   plan: 'plan',
   logo: 'logo',
-  stripeCustomerId: 'stripeCustomerId',
-  stripeSubscriptionId: 'stripeSubscriptionId',
-  stripeSubscriptionStatus: 'stripeSubscriptionStatus',
-  stripeCurrentPeriodEnd: 'stripeCurrentPeriodEnd',
+  mpCustomerId: 'mpCustomerId',
+  mpSubscriptionId: 'mpSubscriptionId',
+  mpSubscriptionStatus: 'mpSubscriptionStatus',
+  mpCurrentPeriodEnd: 'mpCurrentPeriodEnd',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -328,10 +325,13 @@ exports.Prisma.WebhookScalarFieldEnum = {
 
 exports.Prisma.PaymentScalarFieldEnum = {
   id: 'id',
-  stripePaymentIntentId: 'stripePaymentIntentId',
-  stripeInvoiceId: 'stripeInvoiceId',
-  stripeSubscriptionId: 'stripeSubscriptionId',
+  mpPaymentIntentId: 'mpPaymentIntentId',
+  mpInvoiceId: 'mpInvoiceId',
+  mpSubscriptionId: 'mpSubscriptionId',
   amount: 'amount',
+  originalAmount: 'originalAmount',
+  discountAmount: 'discountAmount',
+  couponCode: 'couponCode',
   currency: 'currency',
   status: 'status',
   plan: 'plan',
@@ -341,6 +341,38 @@ exports.Prisma.PaymentScalarFieldEnum = {
   createdAt: 'createdAt',
   updatedAt: 'updatedAt',
   organizationId: 'organizationId'
+};
+
+exports.Prisma.CouponScalarFieldEnum = {
+  id: 'id',
+  code: 'code',
+  description: 'description',
+  discountType: 'discountType',
+  discountValue: 'discountValue',
+  minValue: 'minValue',
+  maxUses: 'maxUses',
+  currentUses: 'currentUses',
+  maxUsesPerUser: 'maxUsesPerUser',
+  appliesToPlans: 'appliesToPlans',
+  startsAt: 'startsAt',
+  expiresAt: 'expiresAt',
+  isActive: 'isActive',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.WebhookEventScalarFieldEnum = {
+  id: 'id',
+  source: 'source',
+  eventId: 'eventId',
+  eventType: 'eventType',
+  dataId: 'dataId',
+  status: 'status',
+  requestBody: 'requestBody',
+  responseBody: 'responseBody',
+  errorMessage: 'errorMessage',
+  processedAt: 'processedAt',
+  createdAt: 'createdAt'
 };
 
 exports.Prisma.RemarketingSequenceScalarFieldEnum = {
@@ -366,11 +398,6 @@ exports.Prisma.RemarketingExecutionScalarFieldEnum = {
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
-};
-
-exports.Prisma.QueryMode = {
-  default: 'default',
-  insensitive: 'insensitive'
 };
 
 exports.Prisma.NullsOrder = {
@@ -399,6 +426,8 @@ exports.Prisma.ModelName = {
   CampaignContact: 'CampaignContact',
   Webhook: 'Webhook',
   Payment: 'Payment',
+  Coupon: 'Coupon',
+  WebhookEvent: 'WebhookEvent',
   RemarketingSequence: 'RemarketingSequence',
   RemarketingExecution: 'RemarketingExecution'
 };

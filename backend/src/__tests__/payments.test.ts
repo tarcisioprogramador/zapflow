@@ -57,10 +57,10 @@ describe('Payments Routes', () => {
     name: 'Test Org',
     plan: 'PRO',
     logo: null,
-    stripeCustomerId: 'cus_test',
-    stripeSubscriptionId: 'sub_123',
-    stripeSubscriptionStatus: 'active',
-    stripeCurrentPeriodEnd: new Date(Date.now() + 30 * 86400000),
+    mpCustomerId: 'cus_test',
+    mpSubscriptionId: 'sub_123',
+    mpSubscriptionStatus: 'active',
+    mpCurrentPeriodEnd: new Date(Date.now() + 30 * 86400000),
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -150,9 +150,9 @@ describe('Payments Routes', () => {
           description: 'Assinatura Starter',
           periodStart: new Date(),
           periodEnd: new Date(Date.now() + 30 * 86400000),
-          stripePaymentIntentId: 'pi_123',
-          stripeInvoiceId: 'in_123',
-          stripeSubscriptionId: 'sub_123',
+          mpPaymentIntentId: 'pi_123',
+          mpInvoiceId: 'in_123',
+          mpSubscriptionId: 'sub_123',
           organizationId: 'test-org-id',
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -192,7 +192,12 @@ describe('Payments Routes', () => {
 
       await simulateRequest('get', '/history', req, res);
 
-      expect(res.json).toHaveBeenCalledWith([]);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payments: [],
+          pagination: expect.objectContaining({ page: 1, total: 0 }),
+        })
+      );
     });
 
     it('should support pagination params', async () => {
@@ -233,9 +238,9 @@ describe('Payments Routes', () => {
           description: null,
           periodStart: new Date(),
           periodEnd: new Date(Date.now() + 30 * 86400000),
-          stripePaymentIntentId: 'pi_123',
-          stripeInvoiceId: 'in_123',
-          stripeSubscriptionId: 'sub_123',
+          mpPaymentIntentId: 'pi_123',
+          mpInvoiceId: 'in_123',
+          mpSubscriptionId: 'sub_123',
           organizationId: 'test-org-id',
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -268,7 +273,7 @@ describe('Payments Routes', () => {
       await simulateRequest('post', '/create-checkout', req, res);
 
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ url: expect.any(String), preferenceId: expect.any(String) })
+        expect.objectContaining({ url: expect.any(String), preapprovalId: expect.any(String) })
       );
     });
 
@@ -315,7 +320,7 @@ describe('Payments Routes', () => {
       const res = mockResponse();
 
       prismaMock.user.findUnique.mockResolvedValue(
-        createTestUser({ organization: { ...mockOrg, stripeCustomerId: null, stripeSubscriptionId: null } })
+        createTestUser({ organization: { ...mockOrg, mpCustomerId: null, mpSubscriptionId: null } })
       );
 
       await simulateRequest('post', '/portal', req, res);

@@ -171,8 +171,8 @@ export interface TestUser {
     name: string;
     plan: string;
     logo: string | null;
-    stripeCustomerId: string | null;
-    stripeSubscriptionId: string | null;
+    mpCustomerId: string | null;
+    mpSubscriptionId: string | null;
     createdAt: Date;
     updatedAt: Date;
   } | null;
@@ -196,8 +196,8 @@ export function createTestUser(overrides: Partial<TestUser> = {}): TestUser {
       name: 'Test Org',
       plan: 'FREE',
       logo: null,
-      stripeCustomerId: null,
-      stripeSubscriptionId: null,
+      mpCustomerId: null,
+      mpSubscriptionId: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     },

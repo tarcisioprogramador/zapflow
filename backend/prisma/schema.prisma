@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -65,10 +65,10 @@ model Organization {
   name      String
   plan      String   @default("FREE")
   logo      String?
-  stripeCustomerId     String? @unique
-  stripeSubscriptionId String?
-  stripeSubscriptionStatus String? @default("incomplete")
-  stripeCurrentPeriodEnd  DateTime?
+  mpCustomerId     String? @unique
+  mpSubscriptionId String?
+  mpSubscriptionStatus String? @default("incomplete")
+  mpCurrentPeriodEnd  DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -341,10 +341,13 @@ model Webhook {
 
 model Payment {
   id        String   @id @default(uuid())
-  stripePaymentIntentId String? @unique
-  stripeInvoiceId       String? @unique
-  stripeSubscriptionId  String?
+  mpPaymentIntentId String? @unique
+  mpInvoiceId       String? @unique
+  mpSubscriptionId  String?
   amount        Int     // em centavos (R$ 97,00 = 9700)
+  originalAmount Int?  // valor original antes do desconto (cents)
+  discountAmount Int?   // valor do desconto aplicado (cents)
+  couponCode    String? // cupom usado, se houver
   currency      String  @default("brl")
   status        String  @default("pending") // pending, succeeded, failed, refunded
   plan          String  // STARTER, PRO, ENTERPRISE
@@ -358,7 +361,52 @@ model Payment {
   organizationId String
 
   @@index([organizationId])
-  @@index([stripeSubscriptionId])
+  @@index([mpSubscriptionId])
+  @@index([createdAt])
+}
+
+// ─── Coupons / Discounts ───────────────────────────────
+
+model Coupon {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  description String?
+  discountType  String  // "percentage" | "fixed"
+  discountValue Float   // ex: 20 para 20%, ou 5000 para R$50,00
+  minValue      Int?    // valor mínimo do pedido (cents) para usar o cupom
+  maxUses       Int?    // limite total de usos
+  currentUses   Int     @default(0)
+  maxUsesPerUser Int?   // limite de usos por usuário
+  appliesToPlans String? // JSON array: ["STARTER","PRO","ENTERPRISE"] — null = todos
+  startsAt    DateTime?
+  expiresAt   DateTime?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+  @@index([expiresAt])
+}
+
+// ─── Webhook Event Log (idempotency + audit) ──────────
+
+model WebhookEvent {
+  id           String   @id @default(uuid())
+  source       String   // "mercadopago" | "stripe"
+  eventId      String?  @unique // idempotency key (x-idempotency-key or MP data.id)
+  eventType    String   // "payment" | "subscription_preapproval" | etc
+  dataId       String?  // MP payment.id or preapproval.id
+  status       String   // "received" | "processing" | "processed" | "failed"
+  requestBody  String?  // JSON do payload recebido
+  responseBody String?  // JSON do resultado do processamento
+  errorMessage String?
+  processedAt  DateTime?
+  createdAt    DateTime @default(now())
+
+  @@index([eventId])
+  @@index([dataId])
+  @@index([status])
   @@index([createdAt])
 }
 

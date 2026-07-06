@@ -9,7 +9,7 @@ import {
   Target, Clock, TrendingUp, X, Phone,
   ShoppingCart, ThumbsUp, HelpCircle, Sparkles, ArrowRight,
   Radio, Loader2, Sun, Moon, ShieldCheck, CreditCard,
-  FileText, Lock,
+  FileText, Lock, Menu,
 } from 'lucide-react';
 
 // ─── Scroll Reveal Hook ─────────────────────────────────
@@ -261,7 +261,7 @@ const whyReasons = [
   { icon: Bot, title: 'Atendimentos resolvidos automaticamente', desc: 'Enquanto você dorme, nossa IA está vendendo, tirando dúvidas e aquecendo leads. E o melhor: sem salário, sem férias, sem desculpas.' },
 ];
 
-function BuyButton({ plan, label, className }: { plan: string; label: string; className?: string }) {
+function BuyButton({ plan, label, className, couponCode }: { plan: string; label: string; className?: string; couponCode?: string }) {
   const [loading, setLoading] = useState(false);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const navigate = useNavigate();
@@ -270,7 +270,7 @@ function BuyButton({ plan, label, className }: { plan: string; label: string; cl
     setLoading(true);
     try {
       // Try public checkout first (no auth needed)
-      const { data } = await paymentsApi.publicCheckout({ plan: plan.toUpperCase() });
+      const { data } = await paymentsApi.publicCheckout({ plan: plan.toUpperCase(), couponCode });
       if (data.url) {
         window.location.href = data.url;
         return;
@@ -280,7 +280,7 @@ function BuyButton({ plan, label, className }: { plan: string; label: string; cl
       if (isAuthenticated) {
         // User is logged in, use auth checkout
         try {
-          const { data } = await paymentsApi.createCheckout({ plan: plan.toUpperCase() });
+          const { data } = await paymentsApi.createCheckout({ plan: plan.toUpperCase(), couponCode });
           if (data.url) {
             window.location.href = data.url;
             return;
@@ -316,7 +316,7 @@ function BuyButton({ plan, label, className }: { plan: string; label: string; cl
 }
 
 // ─── PIX Buy Button ────────────────────────────────────
-function PixBuyButton({ plan }: { plan: string }) {
+function PixBuyButton({ plan, couponCode }: { plan: string; couponCode?: string }) {
   const [loading, setLoading] = useState(false);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const navigate = useNavigate();
@@ -326,14 +326,14 @@ function PixBuyButton({ plan }: { plan: string }) {
     try {
       if (isAuthenticated) {
         // Logged in → try PIX-specific endpoint first
-        const { data } = await paymentsApi.createOneTimePix({ plan: plan.toUpperCase() });
+        const { data } = await paymentsApi.createOneTimePix({ plan: plan.toUpperCase(), couponCode });
         if (data.url) {
           window.location.href = data.url;
           return;
         }
       }
       // Not logged in or PIX failed → try public checkout (supports PIX too)
-      const { data } = await paymentsApi.publicCheckout({ plan: plan.toUpperCase() });
+      const { data } = await paymentsApi.publicCheckout({ plan: plan.toUpperCase(), couponCode });
       if (data.url) {
         window.location.href = data.url;
         return;
@@ -369,15 +369,70 @@ function PixBuyButton({ plan }: { plan: string }) {
   );
 }
 
+// ─── Coupon Field ──────────────────────────────────────
+function CouponField({ plan, onCouponChange }: { plan: string; onCouponChange: (code: string | null) => void }) {
+  const [code, setCode] = useState('');
+  const [validating, setValidating] = useState(false);
+  const [result, setResult] = useState<{ valid: boolean; reason?: string; discountAmount?: number; discountType?: string; discountValue?: number } | null>(null);
+
+  const handleValidate = async () => {
+    if (!code.trim()) return;
+    setValidating(true);
+    setResult(null);
+    try {
+      const { data } = await paymentsApi.validateCoupon({ code: code.trim(), plan });
+      setResult(data);
+      onCouponChange(data.valid ? code.trim() : null);
+    } catch {
+      setResult({ valid: false, reason: 'Erro ao validar' });
+      onCouponChange(null);
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 mb-4">
+      <input
+        type="text"
+        value={code}
+        onChange={(e) => { setCode(e.target.value.toUpperCase()); setResult(null); onCouponChange(null); }}
+        placeholder="CUPOM"
+        className="w-24 text-xs font-mono uppercase bg-dark-800/60 border border-dark-700/40 rounded-lg px-2.5 py-2 text-white placeholder-dark-500 focus:outline-none focus:border-zap-500/40 transition-colors"
+        maxLength={20}
+      />
+      <button
+        onClick={handleValidate}
+        disabled={validating || !code.trim()}
+        className="text-xs font-medium text-zap-400 hover:text-zap-300 disabled:opacity-40 transition-colors"
+      >
+        {validating ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Aplicar'}
+      </button>
+      {result && (
+        <span className={`text-[10px] ${result.valid ? 'text-emerald-400' : 'text-red-400'}`}>
+          {result.valid
+            ? `-${result.discountType === 'percentage' ? `${result.discountValue}%` : `R$ ${((result.discountAmount || 0) / 100).toFixed(0)}`}`
+            : result.reason}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const { theme, toggleTheme } = useAppStore();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [couponCodes, setCouponCodes] = useState<Record<string, string | null>>({});
+  const setCoupon = (plan: string, code: string | null) => {
+    setCouponCodes(prev => ({ ...prev, [plan]: code }));
+  };
 
   return (
     <div className="min-h-screen bg-dark-950 text-white overflow-hidden">
       {/* ─── Navigation ─────────────────────────────── */}
       <nav className="fixed top-0 w-full z-50 bg-dark-950/80 backdrop-blur-xl border-b border-dark-700/30">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 group">
+          <Link to="/" className="flex items-center gap-3 group" onClick={() => setMenuOpen(false)}>
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-zap-500 to-brand-600 flex items-center justify-center shadow-lg shadow-zap-500/20 group-hover:shadow-zap-500/30 transition-shadow">
               <Zap className="w-5 h-5 text-white" />
             </div>
@@ -385,6 +440,8 @@ export default function LandingPage() {
               Zap<span className="text-zap-400">Flow</span>
             </span>
           </Link>
+
+          {/* Desktop nav links */}
           <div className="hidden md:flex items-center gap-6">
             <a href="#hero" className="text-sm text-dark-400 hover:text-white transition-colors">Inicio</a>
             <a href="#features" className="text-sm text-dark-400 hover:text-white transition-colors">Funções</a>
@@ -392,26 +449,55 @@ export default function LandingPage() {
             <a href="#testimonials" className="text-sm text-dark-400 hover:text-white transition-colors">Depoimentos</a>
             <a href="#faq" className="text-sm text-dark-400 hover:text-white transition-colors">FAQ</a>
           </div>
-          {/* Theme Toggle */}
-          <button
-            onClick={toggleTheme}
-            className="p-2.5 rounded-lg hover:bg-dark-800/50 transition-colors text-dark-400 hover:text-dark-200 border border-dark-700/30"
-            title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
-          >
-            {theme === 'dark' ? (
-              <Sun className="w-4 h-4" />
-            ) : (
-              <Moon className="w-4 h-4" />
-            )}
-          </button>
 
-          <Link
-            to="/login"
-            className="bg-zap-500 hover:bg-zap-600 text-white font-semibold px-5 py-2.5 rounded-lg transition-all duration-200 shadow-lg shadow-zap-500/20 hover:shadow-zap-500/30 active:scale-[0.98] text-sm btn-glow"
-          >
-            Conecte-se
-          </Link>
+          <div className="flex items-center gap-2">
+            {/* Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className="p-2.5 rounded-lg hover:bg-dark-800/50 transition-colors text-dark-400 hover:text-dark-200 border border-dark-700/30"
+              title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
+            </button>
+
+            {/* Conecte-se (desktop) */}
+            <Link
+              to="/login"
+              className="hidden md:inline-flex bg-zap-500 hover:bg-zap-600 text-white font-semibold px-5 py-2.5 rounded-lg transition-all duration-200 shadow-lg shadow-zap-500/20 hover:shadow-zap-500/30 active:scale-[0.98] text-sm btn-glow"
+            >
+              Conecte-se
+            </Link>
+
+            {/* Hamburger (mobile) */}
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="md:hidden p-2.5 rounded-lg hover:bg-dark-800/50 transition-colors text-dark-400"
+              aria-label="Menu"
+            >
+              {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
+
+        {/* Mobile menu dropdown */}
+        {menuOpen && (
+          <div className="md:hidden border-t border-dark-700/30 bg-dark-950/95 backdrop-blur-xl">
+            <div className="px-6 py-4 flex flex-col gap-3">
+              <a href="#hero" onClick={() => setMenuOpen(false)} className="text-sm text-dark-300 hover:text-white transition-colors py-2">Inicio</a>
+              <a href="#features" onClick={() => setMenuOpen(false)} className="text-sm text-dark-300 hover:text-white transition-colors py-2">Funções</a>
+              <a href="#pricing" onClick={() => setMenuOpen(false)} className="text-sm text-dark-300 hover:text-white transition-colors py-2">Planos</a>
+              <a href="#testimonials" onClick={() => setMenuOpen(false)} className="text-sm text-dark-300 hover:text-white transition-colors py-2">Depoimentos</a>
+              <a href="#faq" onClick={() => setMenuOpen(false)} className="text-sm text-dark-300 hover:text-white transition-colors py-2">FAQ</a>
+              <Link to="/login" onClick={() => setMenuOpen(false)} className="bg-zap-500 hover:bg-zap-600 text-white font-semibold text-sm px-5 py-2.5 rounded-lg text-center mt-2">
+                Conecte-se
+              </Link>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* ─── Hero Section ──────────────────────────── */}
@@ -853,9 +939,14 @@ export default function LandingPage() {
                       </li>
                     ))}
                   </ul>
+                  <CouponField
+                    plan={plan.name === 'IA Pro' ? 'PRO' : 'STARTER'}
+                    onCouponChange={(code) => setCoupon(plan.name === 'IA Pro' ? 'PRO' : 'STARTER', code)}
+                  />
             <BuyButton
               plan={plan.name === 'IA Pro' ? 'PRO' : 'STARTER'}
               label={plan.cta}
+              couponCode={couponCodes[plan.name === 'IA Pro' ? 'PRO' : 'STARTER'] || undefined}
               className={`w-full block text-center font-semibold px-5 py-3.5 rounded-lg transition-all duration-200 ${
                 plan.popular
                   ? 'bg-zap-500 hover:bg-zap-600 text-white shadow-lg shadow-zap-500/20 btn-glow'
@@ -865,7 +956,7 @@ export default function LandingPage() {
 
             {/* PIX Option */}
             <div className="mt-3">
-              <PixBuyButton plan={plan.name === 'IA Pro' ? 'PRO' : 'STARTER'} />
+              <PixBuyButton plan={plan.name === 'IA Pro' ? 'PRO' : 'STARTER'} couponCode={couponCodes[plan.name === 'IA Pro' ? 'PRO' : 'STARTER'] || undefined} />
             </div>
 
             {/* Payment Methods Badges */}
@@ -905,13 +996,20 @@ export default function LandingPage() {
                     </div>
                   ))}
                 </div>
+                <div className="flex justify-center mb-4">
+                  <CouponField
+                    plan="ENTERPRISE"
+                    onCouponChange={(code) => setCoupon('ENTERPRISE', code)}
+                  />
+                </div>
                 <BuyButton
                   plan="ENTERPRISE"
                   label="CONTRATAR ENTERPRISE"
+                  couponCode={couponCodes['ENTERPRISE'] || undefined}
                   className="inline-block bg-zap-500 hover:bg-zap-600 text-white font-bold px-8 py-4 rounded-lg transition-all shadow-lg shadow-zap-500/30 btn-glow"
                 />
                 <div className="mt-3">
-                  <PixBuyButton plan="ENTERPRISE" />
+                  <PixBuyButton plan="ENTERPRISE" couponCode={couponCodes['ENTERPRISE'] || undefined} />
                 </div>
                 <div className="flex items-center justify-center gap-2 mt-4">
                   <span className="text-[10px] text-dark-500 mr-1">Pagamento via</span>

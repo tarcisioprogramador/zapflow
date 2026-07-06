@@ -19,63 +19,113 @@ const tabs = [
   { id: 'plan', label: 'Plano', icon: CreditCard },
 ];
 
+function CouponInput({ onCouponValidated, planId }: { onCouponValidated: (coupon: { code: string; discountType: string; discountValue: number; discountAmount: number; finalAmount: number } | null) => void; planId: string }) {
+  const [code, setCode] = useState('');
+  const [validating, setValidating] = useState(false);
+  const [result, setResult] = useState<{ valid: boolean; reason?: string; discountAmount?: number; finalAmount?: number; discountType?: string; discountValue?: number } | null>(null);
+
+  const handleValidate = async () => {
+    if (!code.trim()) return;
+    setValidating(true);
+    setResult(null);
+    try {
+      const { data } = await paymentsApi.validateCoupon({ code: code.trim(), plan: planId });
+      setResult(data);
+      if (data.valid) {
+        onCouponValidated({ code: code.trim(), discountType: data.coupon?.discountType, discountValue: data.coupon?.discountValue, discountAmount: data.discountAmount, finalAmount: data.finalAmount });
+      } else {
+        onCouponValidated(null);
+      }
+    } catch {
+      setResult({ valid: false, reason: 'Erro ao validar cupom' });
+      onCouponValidated(null);
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="text"
+        value={code}
+        onChange={(e) => { setCode(e.target.value.toUpperCase()); setResult(null); }}
+        placeholder="CUPOM"
+        className="input-field w-28 text-xs font-mono uppercase"
+        maxLength={20}
+      />
+      <button
+        onClick={handleValidate}
+        disabled={validating || !code.trim()}
+        className="btn-ghost text-xs disabled:opacity-40"
+      >
+        {validating ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Aplicar'}
+      </button>
+      {result && (
+        <span className={`text-[10px] ${result.valid ? 'text-emerald-400' : 'text-red-400'}`}>
+          {result.valid
+            ? `-${result.discountType === 'percentage' ? `${result.discountValue}%` : `R$ ${((result.discountAmount || 0) / 100).toFixed(0).replace('.', ',')}`}`
+            : result.reason}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function OneTimePixButton({ planId, planName, price }: { planId: string; planName: string; price: string }) {
   const [loading, setLoading] = useState(false);
+  const [coupon, setCoupon] = useState<{ code: string } | null>(null);
 
   const handlePay = async () => {
     setLoading(true);
     try {
-      const { data } = await paymentsApi.createOneTimePix({ plan: planId });
+      const { data } = await paymentsApi.createOneTimePix({ plan: planId, couponCode: coupon?.code });
       if (data.url) {
         window.location.href = data.url;
       }
     } catch (err: any) {
       const msg = err.response?.data?.error || 'Erro ao criar pagamento PIX';
-      if (msg.includes('Mercado Pago não configurado')) {
-        alert('Mercado Pago ainda não configurado. Complete a configuração na seção acima.');
-      } else {
-        alert(msg);
-      }
+      alert(msg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <button
-      onClick={handlePay}
-      disabled={loading}
-      className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-5 py-2.5 rounded-lg transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] disabled:opacity-70"
-    >
-      {loading ? (
-        <Loader2 className="w-4 h-4 animate-spin" />
-      ) : (
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 0C5.383 0 0 5.383 0 12s5.383 12 12 12 12-5.383 12-12S18.617 0 12 0zm-1.004 16.125l-3.234-3.234 1.145-1.145 2.089 2.089 4.357-4.357 1.145 1.145-5.502 5.502z"/>
-        </svg>
-      )}
-      {planName} — {price}
-    </button>
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        onClick={handlePay}
+        disabled={loading}
+        className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-5 py-2.5 rounded-lg transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] disabled:opacity-70"
+      >
+        {loading ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0C5.383 0 0 5.383 0 12s5.383 12 12 12 12-5.383 12-12S18.617 0 12 0zm-1.004 16.125l-3.234-3.234 1.145-1.145 2.089 2.089 4.357-4.357 1.145 1.145-5.502 5.502z"/>
+          </svg>
+        )}
+        {planName} — {price}
+      </button>
+      <CouponInput onCouponValidated={(c) => setCoupon(c)} planId={planId} />
+    </div>
   );
 }
 
 function PlanCard({ plan }: { plan: { id: string; name: string; price: string; period: string; features: string[]; current: boolean; popular: boolean } }) {
   const [loading, setLoading] = useState(false);
+  const [coupon, setCoupon] = useState<{ code: string } | null>(null);
 
   const handleUpgrade = async () => {
     setLoading(true);
     try {
-      const { data } = await paymentsApi.createCheckout({ plan: plan.id });
+      const { data } = await paymentsApi.createCheckout({ plan: plan.id, couponCode: coupon?.code });
       if (data.url) {
         window.location.href = data.url;
       }
     } catch (err: any) {
       const msg = err.response?.data?.error || 'Erro ao iniciar checkout';
-      if (msg.includes('Mercado Pago não configurado')) {
-        alert('Pagamento via Mercado Pago ainda não configurado. Complete a configuração na aba Plano > Configuração de Pagamentos.');
-      } else {
-        alert(msg);
-      }
+      alert(msg);
     } finally {
       setLoading(false);
     }
@@ -101,25 +151,28 @@ function PlanCard({ plan }: { plan: { id: string; name: string; price: string; p
           </li>
         ))}
       </ul>
-      <button
-        onClick={plan.current ? undefined : handleUpgrade}
-        disabled={loading}
-        className={`w-full flex items-center justify-center gap-2 font-semibold px-5 py-3 rounded-lg transition-all ${
-          plan.current
-            ? 'bg-dark-700 text-white border border-dark-600 cursor-default'
-            : plan.popular
-              ? 'bg-zap-500 hover:bg-zap-600 text-white shadow-lg shadow-zap-500/20 active:scale-[0.98]'
-              : 'bg-dark-800 hover:bg-dark-700 text-white border border-dark-600 active:scale-[0.98]'
-        }`}
-      >
-        {loading ? (
-          <Loader2 className="w-5 h-5 animate-spin" />
-        ) : plan.current ? (
-          'Plano Atual'
-        ) : (
-          'Fazer Upgrade'
-        )}
-      </button>
+      <div className="space-y-2">
+        <CouponInput onCouponValidated={(c) => setCoupon(c)} planId={plan.id} />
+        <button
+          onClick={plan.current ? undefined : handleUpgrade}
+          disabled={loading}
+          className={`w-full flex items-center justify-center gap-2 font-semibold px-5 py-3 rounded-lg transition-all ${
+            plan.current
+              ? 'bg-dark-700 text-white border border-dark-600 cursor-default'
+              : plan.popular
+                ? 'bg-zap-500 hover:bg-zap-600 text-white shadow-lg shadow-zap-500/20 active:scale-[0.98]'
+                : 'bg-dark-800 hover:bg-dark-700 text-white border border-dark-600 active:scale-[0.98]'
+          }`}
+        >
+          {loading ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : plan.current ? (
+            'Plano Atual'
+          ) : (
+            'Fazer Upgrade'
+          )}
+        </button>
+      </div>
     </div>
   );
 }
@@ -142,6 +195,8 @@ export default function SettingsPage() {
   const [paymentsPage, setPaymentsPage] = useState(1);
   const [paymentsTotal, setPaymentsTotal] = useState(0);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const loadTrial = useCallback(async () => {
     try {
@@ -190,6 +245,20 @@ export default function SettingsPage() {
       toast.error(err.response?.data?.error || 'Erro ao abrir portal');
     } finally {
       setPortalLoading(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    setCancelLoading(true);
+    try {
+      await paymentsApi.cancelSubscription();
+      toast.success('Assinatura cancelada com sucesso');
+      setShowCancelConfirm(false);
+      loadSubscription();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Erro ao cancelar assinatura');
+    } finally {
+      setCancelLoading(false);
     }
   };
 
@@ -521,7 +590,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 pt-2">
+                    <div className="flex items-center gap-3 pt-2 flex-wrap">
                       <button
                         onClick={handleOpenPortal}
                         disabled={portalLoading}
@@ -533,6 +602,12 @@ export default function SettingsPage() {
                           <ExternalLinkIcon className="w-4 h-4" />
                         )}
                         Gerenciar Assinatura
+                      </button>
+                      <button
+                        onClick={() => setShowCancelConfirm(true)}
+                        className="btn-ghost text-sm text-red-400 hover:text-red-300 flex items-center gap-2"
+                      >
+                        Cancelar Assinatura
                       </button>
                       <p className="text-xs text-dark-500">
                         No Mercado Pago você pode gerenciar sua assinatura, atualizar forma de pagamento ou cancelar.
@@ -697,6 +772,12 @@ export default function SettingsPage() {
                             R$ {(payment.amount / 100).toFixed(2).replace('.', ',')}
                           </p>
                           <p className="text-xs text-dark-500 mt-0.5">{payment.plan}</p>
+                          {payment.discountAmount && payment.discountAmount > 0 && (
+                            <p className="text-[10px] text-emerald-400 mt-0.5">
+                              -R$ {(payment.discountAmount / 100).toFixed(2).replace('.', ',')}
+                              {payment.couponCode && ` (${payment.couponCode})`}
+                            </p>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -736,6 +817,31 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+
+      {/* Cancel Subscription Modal */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+          <div className="glass-card w-full max-w-md p-6 mx-4 animate-slide-up">
+            <h3 className="text-xl font-heading font-bold text-white mb-2">Cancelar Assinatura</h3>
+            <p className="text-sm text-dark-400 mb-6">
+              Tem certeza? Seu plano será rebaixado para <strong>Free</strong> e você perderá acesso aos recursos
+              premium no final do período já pago. Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowCancelConfirm(false)} className="btn-secondary flex-1">
+                Manter Assinatura
+              </button>
+              <button
+                onClick={handleCancelSubscription}
+                disabled={cancelLoading}
+                className="flex-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-semibold px-5 py-3 rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {cancelLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirmar Cancelamento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Webhook Modal */}
       {showWebhookModal && (

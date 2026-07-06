@@ -1,17 +1,12 @@
-/**
- * Payment Service - Mercado Pago Integration
- * Handles checkout preferences, subscriptions, PIX, and webhook processing
- */
-
 import { MercadoPagoConfig, Preference, PreApproval, Payment as MpPayment } from 'mercadopago';
 import crypto from 'crypto';
 import prisma from '../config/database';
+import { validateCoupon, incrementCouponUsage } from './coupon';
+import { createEventLog, updateEventLog, findRecentEventByDataId } from './webhook-events';
 
 const mpAccessToken = process.env.MP_ACCESS_TOKEN || '';
 const mpPublicKey = process.env.MP_PUBLIC_KEY || '';
 const MP_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || '';
-
-// Max age for webhook notification timestamps (5 minutes)
 const MAX_WEBHOOK_AGE_MS = 5 * 60 * 1000;
 
 let client: MercadoPagoConfig | null = null;
@@ -23,16 +18,17 @@ try {
   console.warn('[Mercado Pago] Invalid access token');
 }
 
-// Plan configuration
-const PLANS: Record<string, { name: string; amount: number }> = {
+const PLANS: Record<string, { name: string; amount: number; monthlyId?: string; yearlyId?: string }> = {
   STARTER: { name: 'IA Starter', amount: 9700 },
   PRO: { name: 'IA Pro', amount: 19700 },
   ENTERPRISE: { name: 'Enterprise', amount: 49700 },
 };
 
-/**
- * Check Mercado Pago configuration status
- */
+const DISCOUNT_CODES = {
+  WELCOME10: { type: 'percentage' as const, value: 10, description: '10% de desconto - Boas vindas' },
+  BLACKFRIDAY30: { type: 'percentage' as const, value: 30, description: '30% de desconto - Black Friday' },
+};
+
 export function getMpStatus() {
   const hasAccessToken = !!process.env.MP_ACCESS_TOKEN;
   const hasPublicKey = !!process.env.MP_PUBLIC_KEY;
@@ -62,26 +58,11 @@ export function getMpStatus() {
   };
 }
 
-/**
- * Validate Mercado Pago webhook notification signature
- * 
- * Mercado Pago sends the x-signature header in format:
- *   ts=<timestamp>,v1=<hmac_hex>
- * 
- * The manifest to sign is:
- *   id:<data.id>;request-id:<x-request-id>;ts:<ts>;
- * 
- * Uses HMAC-SHA256 with the configured webhook secret key.
- * Also validates the timestamp to prevent replay attacks.
- * 
- * If MP_WEBHOOK_SECRET is not configured, returns true with a warning.
- */
 export function validateWebhookSignature(req: {
   headers: Record<string, string | string[] | undefined>;
   query: Record<string, string | undefined>;
   body: any;
 }): { valid: boolean; reason?: string } {
-  // If no secret configured, warn but allow (backward compatibility)
   if (!MP_WEBHOOK_SECRET) {
     console.warn('[Mercado Pago] MP_WEBHOOK_SECRET não configurado — validação de assinatura desabilitada');
     return { valid: true };
@@ -94,7 +75,6 @@ export function validateWebhookSignature(req: {
     return { valid: false, reason: 'Header x-signature ausente' };
   }
 
-  // Parse x-signature: ts=<timestamp>,v1=<hmac>
   const tsMatch = xSignature.match(/ts=(\d+)/);
   const v1Match = xSignature.match(/v1=([a-f0-9]+)/);
 
@@ -105,7 +85,6 @@ export function validateWebhookSignature(req: {
   const ts = tsMatch[1];
   const receivedHash = v1Match[1];
 
-  // Get data.id from query string (?!data.id=...) or from body.data?.id
   const dataId =
     req.query['data.id'] ||
     req.query['data_id'] ||
@@ -116,7 +95,6 @@ export function validateWebhookSignature(req: {
     return { valid: false, reason: 'data.id não encontrado na requisição' };
   }
 
-  // Validate timestamp (prevent replay attacks)
   const timestamp = parseInt(ts, 10);
   const now = Date.now();
   if (isNaN(timestamp) || now - timestamp > MAX_WEBHOOK_AGE_MS) {
@@ -126,28 +104,16 @@ export function validateWebhookSignature(req: {
     };
   }
 
-  // Build the manifest string to sign
-  // Format: id:<data.id>;ts:<ts>;
-  // If x-request-id is present, append: request-id:<x-request-id>;
-  // Per Mercado Pago docs: omit missing values from the manifest.
   let manifest = `id:${dataId};ts:${ts};`;
   if (xRequestId) {
     manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
   }
 
-  // Compute HMAC-SHA256
   const computedHash = crypto
     .createHmac('sha256', MP_WEBHOOK_SECRET)
     .update(manifest, 'utf8')
     .digest('hex');
 
-  // Constant-time comparison to prevent timing attacks
-  if (computedHash.length !== receivedHash.length) {
-    return { valid: false, reason: 'Assinatura inválida (tamanho diferente)' };
-  }
-
-  // Use timingSafeEqual for constant-time comparison
-  // Convert hex strings to buffers for proper byte comparison
   try {
     const computedBuf = Buffer.from(computedHash, 'hex');
     const receivedBuf = Buffer.from(receivedHash, 'hex');
@@ -162,10 +128,6 @@ export function validateWebhookSignature(req: {
   return { valid: true };
 }
 
-/**
- * Create a Mercado Pago Checkout Pro preference (redirect-based)
- * Supports PIX, card, and boleto as payment methods
- */
 export async function createCheckoutPreference(params: {
   plan: 'STARTER' | 'PRO' | 'ENTERPRISE';
   customerEmail?: string;
@@ -174,6 +136,7 @@ export async function createCheckoutPreference(params: {
   successUrl: string;
   cancelUrl: string;
   isOneTime?: boolean;
+  couponCode?: string;
 }) {
   if (!client) {
     throw new Error('Mercado Pago não configurado. Adicione MP_ACCESS_TOKEN no .env');
@@ -184,20 +147,34 @@ export async function createCheckoutPreference(params: {
     throw new Error(`Plano ${params.plan} inválido`);
   }
 
-  const amountInReais = plan.amount / 100;
+  let amountInCents = plan.amount;
+  let discountAmount = 0;
+  let finalAmount = amountInCents;
+
+  if (params.couponCode) {
+    const validation = await validateCoupon(params.couponCode, params.plan, amountInCents, params.userId);
+    if (!validation.valid) {
+      throw new Error(`Cupom inválido: ${validation.reason}`);
+    }
+    discountAmount = validation.discountAmount || 0;
+    finalAmount = validation.finalAmount || amountInCents;
+  }
+
+  const amountInReais = finalAmount / 100;
   const paymentType = params.isOneTime ? 'Pagamento único' : 'Assinatura mensal';
 
   const externalRef = JSON.stringify({
     plan: params.plan,
     ...(params.userId ? { userId: params.userId } : {}),
     ...(params.organizationId ? { organizationId: params.organizationId } : {}),
+    ...(params.couponCode ? { coupon: params.couponCode, originalAmount: amountInCents, discountAmount } : {}),
   });
 
   const body: any = {
     items: [
       {
         id: params.plan,
-        title: `ZapFlow ${plan.name}`,
+        title: `ZapFlow ${plan.name}${discountAmount > 0 ? ' (com desconto)' : ''}`,
         description: `${paymentType} - ${plan.name}`,
         quantity: 1,
         currency_id: 'BRL',
@@ -209,7 +186,6 @@ export async function createCheckoutPreference(params: {
       failure: params.cancelUrl,
       pending: params.cancelUrl,
     },
-    // auto_return: só funciona com URLs públicas (não localhost/127.0.0.1)
     ...(params.successUrl.includes('://localhost') || params.successUrl.includes('://127.')
       ? {}
       : { auto_return: 'approved' }),
@@ -220,7 +196,6 @@ export async function createCheckoutPreference(params: {
     notification_url: params.successUrl.replace('/payment/success', '/api/webhook/mercadopago'),
   };
 
-  // Only add payer if email is provided
   if (params.customerEmail) {
     body.payer = { email: params.customerEmail };
     body.metadata = {
@@ -237,19 +212,19 @@ export async function createCheckoutPreference(params: {
     url: result.init_point,
     sandboxUrl: result.sandbox_init_point,
     preferenceId: result.id,
+    originalAmount: discountAmount > 0 ? amountInCents : undefined,
+    discountAmount: discountAmount > 0 ? discountAmount : undefined,
+    finalAmount: discountAmount > 0 ? finalAmount : undefined,
   };
 }
 
-/**
- * Create a Mercado Pago subscription (PreApproval)
- * Used for recurring billing
- */
 export async function createSubscription(params: {
   plan: 'STARTER' | 'PRO' | 'ENTERPRISE';
   payerEmail: string;
   userId: string;
   organizationId: string;
   backUrl: string;
+  couponCode?: string;
 }) {
   if (!client) {
     throw new Error('Mercado Pago não configurado');
@@ -260,13 +235,26 @@ export async function createSubscription(params: {
     throw new Error(`Plano ${params.plan} inválido`);
   }
 
-  const amountInReais = plan.amount / 100;
+  let amountInCents = plan.amount;
+  let discountAmount = 0;
+  let finalAmount = amountInCents;
+
+  if (params.couponCode) {
+    const validation = await validateCoupon(params.couponCode, params.plan, amountInCents, params.userId);
+    if (!validation.valid) {
+      throw new Error(`Cupom inválido: ${validation.reason}`);
+    }
+    discountAmount = validation.discountAmount || 0;
+    finalAmount = validation.finalAmount || amountInCents;
+  }
+
+  const amountInReais = finalAmount / 100;
 
   const preapproval = new PreApproval(client);
 
   const result = await preapproval.create({
     body: {
-      reason: `ZapFlow ${plan.name}`,
+      reason: `ZapFlow ${plan.name}${discountAmount > 0 ? ' (com desconto)' : ''}`,
       auto_recurring: {
         frequency: 1,
         frequency_type: 'months',
@@ -279,56 +267,49 @@ export async function createSubscription(params: {
         userId: params.userId,
         organizationId: params.organizationId,
         plan: params.plan,
+        ...(params.couponCode ? { coupon: params.couponCode, originalAmount: amountInCents, discountAmount } : {}),
       }),
       status: 'pending',
     },
   });
 
+  if (params.couponCode && discountAmount > 0) {
+    await incrementCouponUsage(params.couponCode);
+  }
+
   return {
     url: result.init_point,
     preapprovalId: result.id,
+    originalAmount: discountAmount > 0 ? amountInCents : undefined,
+    discountAmount: discountAmount > 0 ? discountAmount : undefined,
+    finalAmount: discountAmount > 0 ? finalAmount : undefined,
   };
 }
 
-/**
- * Get payment info by ID
- */
 export async function getPaymentInfo(paymentId: string) {
   if (!client) throw new Error('Mercado Pago não configurado');
-
   const payment = new MpPayment(client);
   return payment.get({ id: paymentId });
 }
 
-/**
- * Get preapproval (subscription) info by ID
- */
 export async function getPreapprovalInfo(preapprovalId: string) {
   if (!client) throw new Error('Mercado Pago não configurado');
-
   const preapproval = new PreApproval(client);
   return preapproval.get({ id: preapprovalId });
 }
 
-/**
- * Create a portal-like link to Mercado Pago customer panel
- * Mercado Pago doesn't have a full customer portal like Stripe,
- * but we can redirect users to their subscription management page
- */
 export function getCustomerPanelUrl(customerEmail: string) {
-  // Mercado Pago doesn't have a standard customer portal.
-  // Users manage subscriptions via the Mercado Pago app or through the platform.
   return 'https://www.mercadopago.com.br/subscriptions';
 }
 
-/**
- * Record a payment transaction in the database
- */
 export async function recordPayment(params: {
   organizationId: string;
   mpPaymentId?: string | null;
   mpPreapprovalId?: string | null;
   amount: number;
+  originalAmount?: number;
+  discountAmount?: number;
+  couponCode?: string;
   currency?: string;
   status: 'pending' | 'succeeded' | 'failed' | 'refunded';
   plan: string;
@@ -340,9 +321,12 @@ export async function recordPayment(params: {
     await prisma.payment.create({
       data: {
         organizationId: params.organizationId,
-        stripePaymentIntentId: params.mpPaymentId, // reuse Stripe field for MP payment ID
-        stripeSubscriptionId: params.mpPreapprovalId, // reuse Stripe field for MP preapproval ID
+        mpPaymentIntentId: params.mpPaymentId,
+        mpSubscriptionId: params.mpPreapprovalId,
         amount: params.amount,
+        originalAmount: params.originalAmount,
+        discountAmount: params.discountAmount,
+        couponCode: params.couponCode,
         currency: params.currency || 'brl',
         status: params.status,
         plan: params.plan,
@@ -357,28 +341,45 @@ export async function recordPayment(params: {
   }
 }
 
-/**
- * Handle Mercado Pago webhook notification
- * Types:
- * - payment: when a payment status changes
- * - subscription_preapproval: when a preapproval/subscription status changes
- */
+type WebhookLog = Awaited<ReturnType<typeof createEventLog>>;
+
 export async function handleWebhookNotification(body: any) {
   const { type, action, data } = body;
 
   console.log(`[Mercado Pago] Processing notification: ${type}/${action}`);
 
+  const eventLog = await createEventLog({
+    source: 'mercadopago',
+    eventType: type,
+    dataId: data?.id?.toString(),
+    status: 'received',
+    requestBody: body,
+  });
+
   try {
+    const dataId = data?.id?.toString();
+    if (!dataId) {
+      console.warn('[Mercado Pago] Notification without data.id');
+      if (eventLog) await updateEventLog(eventLog.id, { status: 'failed', errorMessage: 'Missing data.id' });
+      return;
+    }
+
+    const recentEvent = await findRecentEventByDataId('mercadopago', dataId);
+    if (recentEvent && recentEvent.status === 'processed') {
+      console.log(`[Mercado Pago] Event ${dataId} already processed — skipping (idempotency)`);
+      return;
+    }
+
+    if (recentEvent && recentEvent.id !== eventLog?.id) {
+      const le = eventLog;
+      if (le) await updateEventLog(le.id, { status: 'processing' });
+    } else if (eventLog) {
+      await updateEventLog(eventLog.id, { status: 'processing' });
+    }
+
     if (type === 'payment') {
-      const paymentId = data?.id;
-      if (!paymentId) {
-        console.warn('[Mercado Pago] Payment notification without payment ID');
-        return;
-      }
+      const paymentInfo = await getPaymentInfo(dataId);
 
-      const paymentInfo = await getPaymentInfo(paymentId.toString());
-
-      // Parse external reference to get userId, orgId, plan
       let externalRef: any = {};
       try {
         const ref = (paymentInfo as any).external_reference;
@@ -391,15 +392,17 @@ export async function handleWebhookNotification(body: any) {
       const status = paymentInfo.status;
       const statusDetail = (paymentInfo as any).status_detail;
       const payerEmail = (paymentInfo as any).payer?.email;
+      const couponCode = externalRef.coupon;
+      const originalAmount = externalRef.originalAmount;
+      const discountAmount = externalRef.discountAmount;
 
       if (status === 'approved') {
         if (organizationId && organizationId !== 'pending') {
-          // Normal checkout — user already exists
           await prisma.organization.update({
             where: { id: organizationId },
             data: {
-              stripeCustomerId: payerEmail || null,
-              stripeSubscriptionStatus: 'active',
+              mpCustomerId: payerEmail || null,
+              mpSubscriptionStatus: 'active',
               plan: planName,
             },
           });
@@ -413,53 +416,64 @@ export async function handleWebhookNotification(body: any) {
 
           await recordPayment({
             organizationId,
-            mpPaymentId: paymentId.toString(),
-            amount: (paymentInfo as any).transaction_amount * 100 || 0,
+            mpPaymentId: dataId,
+            amount: ((paymentInfo as any).transaction_amount * 100) || 0,
+            originalAmount,
+            discountAmount,
+            couponCode,
             status: 'succeeded',
             plan: planName,
-            description: `Pagamento ${planName} - ${(paymentInfo as any).payment_method?.id || ''}`.trim(),
+            description: `Pagamento ${planName}${couponCode ? ` (cupom: ${couponCode})` : ''} - ${(paymentInfo as any).payment_method?.id || ''}`.trim(),
             periodStart: new Date(),
           });
 
-          console.log(`[Mercado Pago] Payment approved for org ${organizationId}`);
+          if (couponCode) {
+            await incrementCouponUsage(couponCode);
+          }
+
+          console.log(`[Mercado Pago] Payment approved for org ${organizationId}${couponCode ? ` (cupom: ${couponCode})` : ''}`);
         } else if (externalRef.plan) {
-          // Public checkout — has external ref but no user yet. Store payment info for later registration.
           const amount = (paymentInfo as any).transaction_amount;
-          console.log(`[Mercado Pago] Public payment approved: ${paymentId}, plan=${planName}, email=${payerEmail}, amount=${amount}`);
+          console.log(`[Mercado Pago] Public payment approved: ${dataId}, plan=${planName}, email=${payerEmail}`);
 
           await recordPayment({
-            organizationId: `pending_${paymentId}`, // placeholder org ID
-            mpPaymentId: paymentId.toString(),
+            organizationId: `pending_${dataId}`,
+            mpPaymentId: dataId,
             amount: (amount || 0) * 100,
+            originalAmount,
+            discountAmount,
+            couponCode,
             status: 'succeeded',
             plan: planName,
-            description: `Pagamento público ${planName} - aguardando cadastro`,
+            description: `Pagamento público ${planName}${couponCode ? ` (cupom: ${couponCode})` : ''} - aguardando cadastro`,
             periodStart: new Date(),
           });
         } else {
-          // No external reference — payment not created by our system, skip
-          console.log(`[Mercado Pago] Payment ${paymentId} approved but has no external_reference — skipping`);
+          console.log(`[Mercado Pago] Payment ${dataId} approved but has no external_reference — skipping`);
         }
       } else if ((status === 'rejected' || status === 'cancelled') && organizationId) {
         await recordPayment({
           organizationId,
-          mpPaymentId: paymentId.toString(),
+          mpPaymentId: dataId,
           amount: (paymentInfo as any).transaction_amount * 100 || 0,
+          originalAmount,
+          discountAmount,
+          couponCode,
           status: 'failed',
           plan: planName,
-          description: `Pagamento ${status} - ${statusDetail || ''}`.trim(),
+          description: `Pagamento ${status}${couponCode ? ` (cupom: ${couponCode})` : ''} - ${statusDetail || ''}`.trim(),
+        });
+      }
+
+      if (eventLog) {
+        await updateEventLog(eventLog.id, {
+          status: 'processed',
+          responseBody: { status } as any,
         });
       }
     } else if (type === 'subscription_preapproval') {
-      const preapprovalId = data?.id;
-      if (!preapprovalId) {
-        console.warn('[Mercado Pago] Preapproval notification without ID');
-        return;
-      }
+      const preapprovalInfo = await getPreapprovalInfo(dataId);
 
-      const preapprovalInfo = await getPreapprovalInfo(preapprovalId.toString());
-
-      // Parse external reference
       let externalRef: any = {};
       try {
         const ref = (preapprovalInfo as any).external_reference;
@@ -468,22 +482,38 @@ export async function handleWebhookNotification(body: any) {
 
       const organizationId = externalRef.organizationId;
       const status = preapprovalInfo.status;
+      const planName = externalRef.plan || 'FREE';
 
       if (organizationId) {
         if (status === 'authorized' || status === 'active') {
           await prisma.organization.update({
             where: { id: organizationId },
             data: {
-              stripeSubscriptionId: preapprovalId.toString(),
-              stripeSubscriptionStatus: 'active',
+              mpSubscriptionId: dataId,
+              mpSubscriptionStatus: 'active',
+              plan: planName,
             },
           });
+
+          await prisma.user.updateMany({
+            where: { organizationId },
+            data: { plan: planName },
+          });
+
+          await recordPayment({
+            organizationId,
+            mpPreapprovalId: dataId,
+            amount: PLANS[planName]?.amount || 0,
+            status: 'succeeded',
+            plan: planName,
+            description: `Assinatura ${planName} ativada`,
+            periodStart: new Date(),
+          });
         } else if (status === 'cancelled' || status === 'paused') {
+          const newStatus = status === 'cancelled' ? 'canceled' : 'paused';
           await prisma.organization.update({
             where: { id: organizationId },
-            data: {
-              stripeSubscriptionStatus: status === 'cancelled' ? 'canceled' : 'paused',
-            },
+            data: { mpSubscriptionStatus: newStatus },
           });
 
           if (status === 'cancelled') {
@@ -494,16 +524,29 @@ export async function handleWebhookNotification(body: any) {
           }
         }
       }
+
+      if (eventLog) {
+        await updateEventLog(eventLog.id, {
+          status: 'processed',
+          responseBody: { status, planName } as any,
+        });
+      }
+    } else {
+      if (eventLog) {
+        await updateEventLog(eventLog.id, { status: 'processed' });
+      }
     }
   } catch (error) {
     console.error('[Mercado Pago] Webhook processing error:', error);
+    if (eventLog) {
+      await updateEventLog(eventLog.id, {
+        status: 'failed',
+        errorMessage: (error as Error).message,
+      });
+    }
   }
 }
 
-/**
- * Link a public checkout payment to a newly created user/organization.
- * Called after registration on the success page.
- */
 export async function linkPaymentToUser(params: {
   paymentId: string;
   organizationId: string;
@@ -525,13 +568,11 @@ export async function linkPaymentToUser(params: {
       return null;
     }
 
-    // Security: validate that the registering user's email matches the MP payer email
     if (payerEmail && payerEmail.toLowerCase() !== params.userEmail.toLowerCase()) {
       console.warn(`[Payment] Email mismatch for payment ${params.paymentId}: registered=${params.userEmail}, mp=${payerEmail} — not linking`);
       return null;
     }
 
-    // Parse external reference to get plan name
     let externalRef: any = {};
     try {
       const ref = (paymentInfo as any).external_reference;
@@ -541,23 +582,20 @@ export async function linkPaymentToUser(params: {
     const planName = externalRef.plan || 'STARTER';
     const amount = (paymentInfo as any).transaction_amount;
 
-    // Update organization with plan info
     await prisma.organization.update({
       where: { id: params.organizationId },
       data: {
-        stripeCustomerId: payerEmail || null,
-        stripeSubscriptionStatus: 'active',
+        mpCustomerId: payerEmail || null,
+        mpSubscriptionStatus: 'active',
         plan: planName,
       },
     });
 
-    // Update user plan
     await prisma.user.update({
       where: { id: params.userId },
       data: { plan: planName },
     });
 
-    // Migrate payment records from pending_{paymentId} placeholder to real org
     const pendingOrgId = `pending_${params.paymentId}`;
     await prisma.payment.updateMany({
       where: { organizationId: pendingOrgId },
@@ -577,4 +615,43 @@ export async function linkPaymentToUser(params: {
   }
 }
 
-export { PLANS };
+export async function cancelSubscription(organizationId: string) {
+  if (!client) throw new Error('Mercado Pago não configurado');
+
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { mpSubscriptionId: true },
+  });
+
+  if (!org?.mpSubscriptionId) {
+    throw new Error('Nenhuma assinatura ativa encontrada para cancelar');
+  }
+
+  try {
+    const preapproval = new PreApproval(client);
+    await preapproval.update({
+      id: org.mpSubscriptionId,
+      body: { status: 'cancelled' } as any,
+    });
+  } catch (err) {
+    console.error('[Payment] Error canceling on Mercado Pago:', err);
+  }
+
+  await prisma.organization.update({
+    where: { id: organizationId },
+    data: {
+      mpSubscriptionStatus: 'canceled',
+      plan: 'FREE',
+    },
+  });
+
+  await prisma.user.updateMany({
+    where: { organizationId },
+    data: { plan: 'FREE' },
+  });
+
+  console.log(`[Payment] Subscription canceled for org ${organizationId}`);
+  return { canceled: true };
+}
+
+export { PLANS, DISCOUNT_CODES };

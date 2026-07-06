@@ -344,94 +344,114 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Webhooks */}
+          {/* Webhooks (only ADMIN/OWNER can manage) */}
           {activeTab === 'webhooks' && (
             <div className="glass-card p-6 max-w-3xl">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-heading font-bold text-white">Webhooks</h3>
-                <button onClick={() => setShowWebhookModal(true)} className="btn-primary text-sm flex items-center gap-2">
-                  <Plus className="w-4 h-4" /> Novo Webhook
-                </button>
+                {user?.role && ['OWNER', 'ADMIN'].includes(user.role) && (
+                  <button onClick={() => setShowWebhookModal(true)} className="btn-primary text-sm flex items-center gap-2">
+                    <Plus className="w-4 h-4" /> Novo Webhook
+                  </button>
+                )}
               </div>
-              <div className="space-y-3">
-                {webhooks.map((wh) => (
-                  <div key={wh.id} className="flex items-center justify-between p-4 rounded-xl bg-dark-800/50 border border-dark-700/30">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-semibold text-white">{wh.name}</h4>
-                        <span className={`badge text-[10px] ${wh.isActive ? 'badge-green' : 'badge-red'}`}>
-                          {wh.isActive ? 'Ativo' : 'Inativo'}
-                        </span>
+              {!user?.role || !['OWNER', 'ADMIN'].includes(user.role) ? (
+                <div className="p-4 rounded-xl bg-dark-800/50 border border-dark-700/30 text-center">
+                  <Shield className="w-8 h-8 text-dark-500 mx-auto mb-2" />
+                  <p className="text-sm text-dark-400">Apenas administradores podem gerenciar webhooks.</p>
+                  <p className="text-xs text-dark-500 mt-1">Entre em contato com o administrador da sua conta.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {webhooks.map((wh) => (
+                    <div key={wh.id} className="flex items-center justify-between p-4 rounded-xl bg-dark-800/50 border border-dark-700/30">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-semibold text-white">{wh.name}</h4>
+                          <span className={`badge text-[10px] ${wh.isActive ? 'badge-green' : 'badge-red'}`}>
+                            {wh.isActive ? 'Ativo' : 'Inativo'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-dark-400 font-mono mt-1 truncate">{wh.url}</p>
+                        <div className="flex gap-1 mt-2">
+                          {wh.events.map((ev) => (
+                            <span key={ev} className="badge badge-blue text-[9px]">{ev}</span>
+                          ))}
+                        </div>
                       </div>
-                      <p className="text-xs text-dark-400 font-mono mt-1 truncate">{wh.url}</p>
-                      <div className="flex gap-1 mt-2">
-                        {wh.events.map((ev) => (
-                          <span key={ev} className="badge badge-blue text-[9px]">{ev}</span>
-                        ))}
+                      <div className="flex items-center gap-2 ml-4">
+                        <button onClick={() => handleTestWebhook(wh.id)} className="btn-ghost text-xs">
+                          <Send className="w-3.5 h-3.5" /> Testar
+                        </button>
+                        <button onClick={() => handleDeleteWebhook(wh.id)} className="btn-ghost text-dark-500 hover:text-red-400">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 ml-4">
-                      <button onClick={() => handleTestWebhook(wh.id)} className="btn-ghost text-xs">
-                        <Send className="w-3.5 h-3.5" /> Testar
-                      </button>
-                      <button onClick={() => handleDeleteWebhook(wh.id)} className="btn-ghost text-dark-500 hover:text-red-400">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {/* API */}
+          {/* API (only ADMIN/OWNER can view keys) */}
           {activeTab === 'api' && (
             <div className="glass-card p-6 max-w-3xl">
-              <h3 className="text-lg font-heading font-bold text-white mb-6">API Pública</h3>
-              <div className="space-y-4">
-                <div className="p-4 rounded-xl bg-dark-800/50 border border-dark-700/30">
-                  <h4 className="text-sm font-semibold text-white mb-2">Base URL</h4>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 text-sm font-mono text-zap-400 bg-dark-900/50 p-2 rounded-lg">
-                      https://api.zapflow.com/v1
-                    </code>
-                    <button className="btn-ghost p-2"><Copy className="w-4 h-4" /></button>
-                  </div>
-                </div>
-                <div className="p-4 rounded-xl bg-dark-800/50 border border-dark-700/30">
-                  <h4 className="text-sm font-semibold text-white mb-2">API Key</h4>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 text-sm font-mono text-dark-300 bg-dark-900/50 p-2 rounded-lg">
-                      zf_live_sk_xxxxxxxxxxxxxxxxxxxxxxxx
-                    </code>
-                    <button className="btn-ghost p-2"><Copy className="w-4 h-4" /></button>
-                  </div>
-                </div>
-                <div className="p-4 rounded-xl bg-dark-800/50 border border-dark-700/30">
-                  <h4 className="text-sm font-semibold text-white mb-3">Endpoints Disponíveis</h4>
-                  <div className="space-y-2">
-                    {[
-                      { method: 'GET', path: '/messages', desc: 'Listar mensagens' },
-                      { method: 'POST', path: '/messages/send', desc: 'Enviar mensagem' },
-                      { method: 'GET', path: '/contacts', desc: 'Listar contatos' },
-                      { method: 'POST', path: '/contacts', desc: 'Criar contato' },
-                      { method: 'GET', path: '/conversations', desc: 'Listar conversas' },
-                      { method: 'POST', path: '/flows/:id/trigger', desc: 'Disparar fluxo' },
-                    ].map((ep) => (
-                      <div key={ep.path} className="flex items-center gap-3 p-2 rounded-lg hover:bg-dark-700/30">
-                        <span className={`badge text-[10px] w-14 justify-center ${
-                          ep.method === 'GET' ? 'badge-green' : 'badge-blue'
-                        }`}>{ep.method}</span>
-                        <code className="text-xs font-mono text-dark-200">{ep.path}</code>
-                        <span className="text-xs text-dark-500 ml-auto">{ep.desc}</span>
+              {user?.role && ['OWNER', 'ADMIN'].includes(user.role) ? (
+                <>
+                  <h3 className="text-lg font-heading font-bold text-white mb-6">API Pública</h3>
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-xl bg-dark-800/50 border border-dark-700/30">
+                      <h4 className="text-sm font-semibold text-white mb-2">Base URL</h4>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 text-sm font-mono text-zap-400 bg-dark-900/50 p-2 rounded-lg">
+                          https://api.zapflow.com/v1
+                        </code>
+                        <button className="btn-ghost p-2"><Copy className="w-4 h-4" /></button>
                       </div>
-                    ))}
+                    </div>
+                    <div className="p-4 rounded-xl bg-dark-800/50 border border-dark-700/30">
+                      <h4 className="text-sm font-semibold text-white mb-2">API Key</h4>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 text-sm font-mono text-dark-300 bg-dark-900/50 p-2 rounded-lg">
+                          zf_live_sk_xxxxxxxxxxxxxxxxxxxxxxxx
+                        </code>
+                        <button className="btn-ghost p-2"><Copy className="w-4 h-4" /></button>
+                      </div>
+                    </div>
+                    <div className="p-4 rounded-xl bg-dark-800/50 border border-dark-700/30">
+                      <h4 className="text-sm font-semibold text-white mb-3">Endpoints Disponíveis</h4>
+                      <div className="space-y-2">
+                        {[
+                          { method: 'GET', path: '/messages', desc: 'Listar mensagens' },
+                          { method: 'POST', path: '/messages/send', desc: 'Enviar mensagem' },
+                          { method: 'GET', path: '/contacts', desc: 'Listar contatos' },
+                          { method: 'POST', path: '/contacts', desc: 'Criar contato' },
+                          { method: 'GET', path: '/conversations', desc: 'Listar conversas' },
+                          { method: 'POST', path: '/flows/:id/trigger', desc: 'Disparar fluxo' },
+                        ].map((ep) => (
+                          <div key={ep.path} className="flex items-center gap-3 p-2 rounded-lg hover:bg-dark-700/30">
+                            <span className={`badge text-[10px] w-14 justify-center ${
+                              ep.method === 'GET' ? 'badge-green' : 'badge-blue'
+                            }`}>{ep.method}</span>
+                            <code className="text-xs font-mono text-dark-200">{ep.path}</code>
+                            <span className="text-xs text-dark-500 ml-auto">{ep.desc}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <a href="#" className="flex items-center gap-2 text-sm text-zap-400 hover:text-zap-300">
+                      <ExternalLink className="w-4 h-4" /> Ver documentação completa da API
+                    </a>
                   </div>
+                </>
+              ) : (
+                <div className="text-center py-10">
+                  <Key className="w-10 h-10 text-dark-500 mx-auto mb-3" />
+                  <p className="text-sm text-dark-400">Apenas administradores podem acessar as chaves de API.</p>
+                  <p className="text-xs text-dark-500 mt-1">Entre em contato com o administrador da sua conta.</p>
                 </div>
-                <a href="#" className="flex items-center gap-2 text-sm text-zap-400 hover:text-zap-300">
-                  <ExternalLink className="w-4 h-4" /> Ver documentação completa da API
-                </a>
-              </div>
+              )}
             </div>
           )}
 

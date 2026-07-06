@@ -3,7 +3,7 @@ import { URL } from 'url';
 import { lookup } from 'dns';
 import { promisify } from 'util';
 import prisma from '../config/database';
-import { authenticate } from '../middleware/auth';
+import { authenticate, authorize } from '../middleware/auth';
 import { AuthRequest, verifyOrgAccess } from '../types';
 
 const dnsLookup = promisify(lookup);
@@ -132,8 +132,8 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
   }
 });
 
-// POST /api/webhooks - Create webhook
-router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
+// POST /api/webhooks - Create webhook (only ADMIN/OWNER)
+router.post('/', authorize('OWNER', 'ADMIN'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user!.userId } });
     if (!user?.organizationId) {
@@ -168,8 +168,8 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
   }
 });
 
-// PUT /api/webhooks/:id
-router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
+// PUT /api/webhooks/:id (only ADMIN/OWNER)
+router.put('/:id', authorize('OWNER', 'ADMIN'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
 
@@ -198,8 +198,8 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   }
 });
 
-// DELETE /api/webhooks/:id
-router.delete('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
+// DELETE /api/webhooks/:id (only ADMIN/OWNER)
+router.delete('/:id', authorize('OWNER', 'ADMIN'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
 
@@ -213,8 +213,8 @@ router.delete('/:id', async (req: AuthRequest, res: Response): Promise<void> => 
   }
 });
 
-// POST /api/webhooks/:id/test - Test webhook
-router.post('/:id/test', async (req: AuthRequest, res: Response): Promise<void> => {
+// POST /api/webhooks/:id/test - Test webhook (only ADMIN/OWNER)
+router.post('/:id/test', authorize('OWNER', 'ADMIN'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) { res.status(401).json({ error: 'Não autenticado' }); return; }
 

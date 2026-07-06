@@ -315,6 +315,60 @@ function BuyButton({ plan, label, className }: { plan: string; label: string; cl
   );
 }
 
+// ─── PIX Buy Button ────────────────────────────────────
+function PixBuyButton({ plan }: { plan: string }) {
+  const [loading, setLoading] = useState(false);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const navigate = useNavigate();
+
+  const handleClick = async () => {
+    setLoading(true);
+    try {
+      if (isAuthenticated) {
+        // Logged in → try PIX-specific endpoint first
+        const { data } = await paymentsApi.createOneTimePix({ plan: plan.toUpperCase() });
+        if (data.url) {
+          window.location.href = data.url;
+          return;
+        }
+      }
+      // Not logged in or PIX failed → try public checkout (supports PIX too)
+      const { data } = await paymentsApi.publicCheckout({ plan: plan.toUpperCase() });
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+    } catch {
+      // Fallback: redirect to register
+      if (!isAuthenticated) {
+        navigate(`/register?plan=${plan.toLowerCase()}`);
+      } else {
+        navigate('/settings?tab=plan');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={loading}
+      className="w-full flex items-center justify-center gap-2 font-semibold px-4 py-2.5 rounded-lg transition-all duration-200 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/25 hover:border-emerald-500/40 active:scale-[0.98] text-sm"
+    >
+      {loading ? (
+        <Loader2 className="w-4 h-4 animate-spin" />
+      ) : (
+        <>
+          <PixIcon className="w-4 h-4" />
+          Pagar com PIX
+          <span className="text-[9px] text-emerald-500/60 font-normal ml-0.5">Instantâneo</span>
+        </>
+      )}
+    </button>
+  );
+}
+
 export default function LandingPage() {
   const { theme, toggleTheme } = useAppStore();
 
@@ -809,6 +863,11 @@ export default function LandingPage() {
               }`}
             />
 
+            {/* PIX Option */}
+            <div className="mt-3">
+              <PixBuyButton plan={plan.name === 'IA Pro' ? 'PRO' : 'STARTER'} />
+            </div>
+
             {/* Payment Methods Badges */}
             <div className="mt-4 pt-4 border-t border-dark-700/30">
               <div className="flex items-center justify-center gap-2">
@@ -851,6 +910,9 @@ export default function LandingPage() {
                   label="CONTRATAR ENTERPRISE"
                   className="inline-block bg-zap-500 hover:bg-zap-600 text-white font-bold px-8 py-4 rounded-lg transition-all shadow-lg shadow-zap-500/30 btn-glow"
                 />
+                <div className="mt-3">
+                  <PixBuyButton plan="ENTERPRISE" />
+                </div>
                 <div className="flex items-center justify-center gap-2 mt-4">
                   <span className="text-[10px] text-dark-500 mr-1">Pagamento via</span>
                   <PaymentBadge type="pix" />

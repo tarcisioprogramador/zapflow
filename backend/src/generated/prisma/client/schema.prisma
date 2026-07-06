@@ -11,14 +11,18 @@ datasource db {
 // ─── Auth & Plans ───────────────────────────────────────
 
 model User {
-  id             String    @id @default(uuid())
-  name           String
-  email          String    @unique
-  password       String
-  role           String    @default("ATTENDANT")
-  plan           String    @default("FREE")
-  avatar         String?
-  phone          String?
+  id                      String  @id @default(uuid())
+  name                    String
+  email                   String  @unique
+  password                String
+  role                    String  @default("ATTENDANT")
+  plan                    String  @default("FREE")
+  avatar                  String?
+  phone                   String?
+  // Tour completion status (synced across devices)
+  tourDashboardCompleted  Boolean @default(false)
+  tourOnboardingCompleted Boolean @default(false)
+
   // Trial system — 7-day free trial for new accounts
   trialStartedAt DateTime?
   trialExpiresAt DateTime?

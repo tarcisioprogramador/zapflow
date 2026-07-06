@@ -1,5 +1,5 @@
 /**
- * Payment Routes - Stripe Checkout, Webhook, and Subscription Management
+ * Payment Routes - Mercado Pago Checkout, Webhook, and Subscription Management
  */
 
 import { Router, Response, Request } from 'express';
@@ -7,56 +7,74 @@ import prisma from '../config/database';
 import { authenticate } from '../middleware/auth';
 import { AuthRequest } from '../types';
 import {
-  createCheckoutSession,
-  createPortalSession,
-  getCheckoutSession,
-  handleWebhookEvent,
-  getStripeStatus,
-  setupStripeProducts,
-  stripe,
-  STRIPE_WEBHOOK_SECRET,
-  STRIPE_PUBLISHABLE_KEY,
+  createCheckoutPreference,
+  createSubscription,
+  getPaymentInfo,
+  getPreapprovalInfo,
+  handleWebhookNotification,
+  validateWebhookSignature,
+  getMpStatus,
+  getCustomerPanelUrl,
+  recordPayment,
   PLANS,
 } from '../services/payment';
-import Stripe from 'stripe';
 
 const router = Router();
 
-// ─── Public: Stripe Webhook (raw body required for signature verification) ───
+// ─── Public: Public Checkout (no auth) ─────────────────
+// Allows users to pay before creating an account
+router.post('/public-checkout', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { plan } = req.body;
+
+    if (!plan || !['STARTER', 'PRO', 'ENTERPRISE'].includes(plan)) {
+      res.status(400).json({ error: 'Plano inválido. Escolha STARTER, PRO ou ENTERPRISE.' });
+      return;
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || `http://localhost:5173`;
+
+    // Create a one-time Mercado Pago checkout preference (no user yet)
+    const preference = await createCheckoutPreference({
+      plan,
+      successUrl: `${frontendUrl}/payment/success?payment_id={payment_id}`,
+      cancelUrl: `${frontendUrl}/payment/cancel`,
+      isOneTime: true,
+    });
+
+    res.json({ url: preference.url, preferenceId: preference.preferenceId });
+  } catch (error) {
+    console.error('[Payments] Public checkout error:', error);
+    res.status(500).json({ error: (error as Error).message || 'Erro ao criar checkout' });
+  }
+});
+
+// ─── Public: Mercado Pago Webhook (no auth) ─────────────
 const webhookRouter = Router();
 
-webhookRouter.post('/stripe', async (req: Request, res: Response): Promise<void> => {
+webhookRouter.post('/mercadopago', async (req: Request, res: Response): Promise<void> => {
   try {
-    const sig = req.headers['stripe-signature'] as string;
+    console.log('[Mercado Pago] Webhook received:', JSON.stringify(req.body).slice(0, 200));
 
-    if (!stripe) {
-      console.log('[Stripe] Stripe not configured — webhook ignored');
-      res.status(200).json({ received: true });
+    // Validate webhook signature
+    const validation = validateWebhookSignature({
+      headers: req.headers as Record<string, string | string[] | undefined>,
+      query: req.query as Record<string, string | undefined>,
+      body: req.body,
+    });
+
+    if (!validation.valid) {
+      console.warn(`[Mercado Pago] Webhook signature validation failed: ${validation.reason}`);
+      res.status(401).json({ error: 'Assinatura inválida', reason: validation.reason });
       return;
     }
 
-    if (!sig || !STRIPE_WEBHOOK_SECRET) {
-      console.warn('[Stripe] Webhook received without signature verification (missing STRIPE_WEBHOOK_SECRET)');
-      res.status(400).json({ error: 'Stripe webhook secret not configured on server' });
-      return;
-    }
+    // Process the notification
+    await handleWebhookNotification(req.body);
 
-    // Verify webhook signature
-    const rawBody = (req as any).rawBody;
-    if (!rawBody || typeof rawBody !== 'string' || rawBody.length === 0) {
-      console.error('[Stripe] Raw body not available for signature verification — body parser order issue');
-      res.status(400).json({ error: 'Raw body required for signature verification' });
-      return;
-    }
-
-    const event = stripe.webhooks.constructEvent(rawBody, sig, STRIPE_WEBHOOK_SECRET);
-
-    // Process the event
-    await handleWebhookEvent(event);
-
-    res.json({ received: true });
+    res.status(200).json({ received: true });
   } catch (error) {
-    console.error('[Stripe] Webhook error:', error);
+    console.error('[Mercado Pago] Webhook error:', error);
     res.status(400).send(`Webhook Error: ${(error as Error).message}`);
   }
 });
@@ -64,20 +82,70 @@ webhookRouter.post('/stripe', async (req: Request, res: Response): Promise<void>
 // ─── Protected Routes ───────────────────────────────────
 router.use(authenticate);
 
-// GET /api/payments/config - Get Stripe publishable key
+// GET /api/payments/config - Get Mercado Pago public key
 router.get('/config', async (_req: AuthRequest, res: Response): Promise<void> => {
   res.json({
-    publishableKey: STRIPE_PUBLISHABLE_KEY,
+    publicKey: process.env.MP_PUBLIC_KEY || '',
     plans: Object.entries(PLANS).map(([key, plan]) => ({
       id: key,
       name: plan.name,
       amount: plan.amount,
-      priceId: plan.priceId,
     })),
   });
 });
 
-// POST /api/payments/create-checkout - Create a checkout session
+// POST /api/payments/create-one-time-pix - Create a one-time PIX/checkout preference (not recurring)
+router.post('/create-one-time-pix', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Não autenticado' });
+      return;
+    }
+
+    const { plan } = req.body;
+
+    if (!plan || !['STARTER', 'PRO', 'ENTERPRISE'].includes(plan)) {
+      res.status(400).json({ error: 'Plano inválido. Escolha STARTER, PRO ou ENTERPRISE.' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      include: { organization: true },
+    });
+
+    if (!user) {
+      res.status(404).json({ error: 'Usuário não encontrado' });
+      return;
+    }
+
+    const orgId = user.organizationId || user.id;
+    const host = req.get('host') || 'localhost:3001';
+    const protocol = req.protocol || 'https';
+
+    // Create one-time Checkout Pro preference (PIX, card, boleto)
+    const preference = await createCheckoutPreference({
+      plan,
+      customerEmail: user.email,
+      userId: user.id,
+      organizationId: orgId,
+      successUrl: `${protocol}://${host}/payment/success?payment_id={payment_id}`,
+      cancelUrl: `${protocol}://${host}/payment/cancel`,
+      isOneTime: true,
+    });
+
+    res.json({
+      url: preference.url,
+      preferenceId: preference.preferenceId,
+      isOneTime: true,
+    });
+  } catch (error) {
+    console.error('[Payments] One-time PIX error:', error);
+    res.status(500).json({ error: (error as Error).message || 'Erro ao criar PIX' });
+  }
+});
+
+// POST /api/payments/create-checkout - Create a checkout preference (redirect)
 router.post('/create-checkout', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) {
@@ -106,62 +174,72 @@ router.post('/create-checkout', async (req: AuthRequest, res: Response): Promise
     const host = req.get('host') || 'localhost:3001';
     const protocol = req.protocol || 'https';
 
-    // Create Stripe checkout session
-    const session = await createCheckoutSession({
+    // Create Mercado Pago checkout preference
+    // Use subscription (preapproval) for recurring billing
+    const subscription = await createSubscription({
       plan,
-      customerEmail: user.email,
+      payerEmail: user.email,
       userId: user.id,
       organizationId: orgId,
-      successUrl: `${protocol}://${host}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: `${protocol}://${host}/payment/cancel`,
+      backUrl: `${protocol}://${host}/payment/success?preapproval_id={preapproval_id}`,
     });
 
-    res.json(session);
+    res.json({
+      url: subscription.url,
+      preferenceId: subscription.preapprovalId,
+    });
   } catch (error) {
     console.error('[Payments] Checkout error:', error);
     res.status(500).json({ error: (error as Error).message || 'Erro ao criar checkout' });
   }
 });
 
-// GET /api/payments/status - Check Stripe configuration status
+// GET /api/payments/status - Check Mercado Pago configuration
 router.get('/status', async (_req: AuthRequest, res: Response): Promise<void> => {
-  res.json(getStripeStatus());
+  res.json(getMpStatus());
 });
 
-// POST /api/payments/setup-products - Auto-create Stripe products and prices
+// POST /api/payments/setup-products - No-op for Mercado Pago (products are defined in code)
 router.post('/setup-products', async (_req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const results = await setupStripeProducts();
-    res.json({
-      success: true,
-      message: 'Produtos criados com sucesso!',
-      products: results,
-      envVars: results.map((r) => `STRIPE_PRICE_${r.planId}=${r.priceId}`),
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: (error as Error).message || 'Erro ao criar produtos Stripe',
-    });
-  }
+  res.json({
+    success: true,
+    message: 'Mercado Pago usa valores definidos no código. Os planos já estão configurados.',
+    plans: Object.entries(PLANS).map(([key, plan]) => ({
+      id: key,
+      name: plan.name,
+      amount: plan.amount,
+      description: `ZapFlow ${plan.name}`,
+    })),
+  });
 });
 
-// GET /api/payments/session/:id - Verify session status
+// GET /api/payments/session/:id - Get payment/preapproval info
 router.get('/session/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const session = await getCheckoutSession(req.params.id);
-    res.json({
-      status: session.status,
-      customerEmail: session.customer_email,
-      plan: session.metadata?.plan,
-      subscriptionId: session.subscription,
-    });
+    // Try as payment first, then as preapproval
+    try {
+      const payment = await getPaymentInfo(req.params.id);
+      res.json({
+        status: payment.status === 'approved' ? 'complete' : payment.status,
+        customerEmail: (payment as any).payer?.email,
+        plan: (payment as any).metadata?.plan || null,
+      });
+      return;
+    } catch {
+      // Not a payment, try preapproval
+      const preapproval = await getPreapprovalInfo(req.params.id);
+      res.json({
+        status: preapproval.status === 'authorized' ? 'active' : preapproval.status,
+        plan: null,
+        subscriptionId: req.params.id,
+      });
+    }
   } catch (error) {
     res.status(500).json({ error: 'Erro ao verificar sessão' });
   }
 });
 
-// POST /api/payments/portal - Create a customer portal session
+// POST /api/payments/portal - Get link to manage subscription on Mercado Pago
 router.post('/portal', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) {
@@ -174,26 +252,21 @@ router.post('/portal', async (req: AuthRequest, res: Response): Promise<void> =>
       include: { organization: true },
     });
 
-    if (!user?.organization?.stripeCustomerId) {
+    if (!user?.organization?.stripeSubscriptionId) {
       res.status(400).json({ error: 'Nenhuma assinatura ativa encontrada' });
       return;
     }
 
-    const host = req.get('host') || 'localhost:3001';
-    const protocol = req.protocol || 'https';
+    // Redirect to Mercado Pago subscriptions page
+    const url = getCustomerPanelUrl(user.email);
 
-    const session = await createPortalSession({
-      customerId: user.organization.stripeCustomerId,
-      returnUrl: `${protocol}://${host}/settings`,
-    });
-
-    res.json(session);
+    res.json({ url });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao criar portal' });
   }
 });
 
-// GET /api/payments/subscription - Get current subscription info with renewal
+// GET /api/payments/subscription - Get current subscription info
 router.get('/subscription', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) {
@@ -218,7 +291,7 @@ router.get('/subscription', async (req: AuthRequest, res: Response): Promise<voi
       plan: user.plan,
       planName: plan?.name || user.plan,
       amount: plan?.amount || 0,
-      hasSubscription: !!org?.stripeCustomerId,
+      hasSubscription: !!org?.stripeSubscriptionId,
       subscriptionId: org?.stripeSubscriptionId,
       subscriptionStatus: org?.stripeSubscriptionStatus || null,
       currentPeriodEnd: org?.stripeCurrentPeriodEnd?.toISOString() || null,
@@ -290,7 +363,7 @@ router.get('/history', async (req: AuthRequest, res: Response): Promise<void> =>
   }
 });
 
-// GET /api/payments/invoices - Alias for history (returns formatted for invoice display)
+// GET /api/payments/invoices - Alias for history
 router.get('/invoices', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) {
@@ -327,7 +400,7 @@ router.get('/invoices', async (req: AuthRequest, res: Response): Promise<void> =
       periodStart: p.periodStart?.toISOString() || null,
       periodEnd: p.periodEnd?.toISOString() || null,
       paidAt: p.createdAt.toISOString(),
-      downloadUrl: null, // Stripe hosted invoice URL could be added later
+      downloadUrl: null,
     })));
   } catch (error) {
     res.status(500).json({ error: 'Erro ao buscar faturas' });

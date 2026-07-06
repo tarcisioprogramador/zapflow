@@ -8,7 +8,8 @@ import {
   Smartphone, Play, Brain, Repeat, BotMessageSquare,
   Target, Clock, TrendingUp, X, Phone,
   ShoppingCart, ThumbsUp, HelpCircle, Sparkles, ArrowRight,
-  Radio, Loader2, Sun, Moon,
+  Radio, Loader2, Sun, Moon, ShieldCheck, CreditCard,
+  FileText, Lock,
 } from 'lucide-react';
 
 // ─── Scroll Reveal Hook ─────────────────────────────────
@@ -114,6 +115,43 @@ function TypingIndicator() {
   );
 }
 
+// ─── Small helper: PIX icon SVG ────────────────────────
+function PixIcon({ className = 'w-3 h-3' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0C5.383 0 0 5.383 0 12s5.383 12 12 12 12-5.383 12-12S18.617 0 12 0zm-1.004 16.125l-3.234-3.234 1.145-1.145 2.089 2.089 4.357-4.357 1.145 1.145-5.502 5.502z"/>
+    </svg>
+  );
+}
+
+// ─── Payment method badge ───────────────────────────────
+function PaymentBadge({ type }: { type: 'pix' | 'card' | 'boleto' }) {
+  const config = {
+    pix: {
+      icon: <PixIcon className="w-3 h-3" />,
+      label: 'PIX',
+      bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+    },
+    card: {
+      icon: <CreditCard className="w-3 h-3" />,
+      label: 'Cartão',
+      bg: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+    },
+    boleto: {
+      icon: <FileText className="w-3 h-3" />,
+      label: 'Boleto',
+      bg: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+    },
+  };
+  const c = config[type];
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-semibold ${c.bg}`}>
+      {c.icon}
+      {c.label}
+    </span>
+  );
+}
+
 // ─── Data ───────────────────────────────────────────────
 const features = [
   { icon: MessageSquare, title: 'Multi-WhatsApp e Multi-Acessos', description: 'Tenha vários números operando na mesma conta — cada um com seu fluxo, seus leads, seus webhooks, ou se preferir tudo centralizado tenha também. Você decide seu time trabalhando junto ou separado.' },
@@ -163,6 +201,15 @@ const faqs = [
   { q: 'Quantos robôs posso criar?', a: 'Você pode criar quantos robôs ou fluxos de conversas você quiser. Você pode literalmente automatizar todo tipo de conversa que acontece no seu WhatsApp.' },
   { q: 'O que são palavras chaves?', a: 'São palavras ou frases que acionam os seus robôs. Você pode, por exemplo, criar a palavra chave "preço" para acionar o robô de cardápio/menu toda vez que um cliente enviar uma mensagem que contenha essa palavra.' },
   { q: 'Se eu não gostar, como cancelo?', a: 'Você tem 7 dias para testar toda a ferramenta do ZapFlow e caso deseje cancelar é só enviar um email para cancelamento@zapflow.com dentro do prazo dos 7 dias. Seu dinheiro será 100% devolvido sem perguntas.' },
+];
+
+const paymentFaqs = [
+  { q: 'Quais formas de pagamento são aceitas?', a: 'Aceitamos PIX (pagamento instantâneo), cartão de crédito (à vista) e boleto bancário através do Mercado Pago, uma das maiores plataformas de pagamento da América Latina, regulada pelo Banco Central.' },
+  { q: 'O pagamento via PIX é realmente instantâneo?', a: 'Sim! O PIX é processado em segundos. Assim que a confirmação chega, seu plano é ativado automaticamente — sem espera, sem burocracia.' },
+  { q: 'É seguro pagar com o Mercado Pago?', a: 'Com certeza. O Mercado Pago é certificado e segue os mais rígidos padrões de segurança, com criptografia de ponta a ponta, autenticação em duas etapas e conformidade com o Banco Central do Brasil. Seus dados financeiros estão sempre protegidos.' },
+  { q: 'Posso parcelar no cartão de crédito?', a: 'No momento, aceitamos cartão de crédito em até 1 parcela (à vista). O Mercado Pago processa o pagamento com total segurança. Planejamos adicionar parcelamento em breve!' },
+  { q: 'Como funciona o pagamento com boleto bancário?', a: 'Ao escolher boleto, você recebe um código de barras com vencimento em até 3 dias úteis. Após o pagamento, a compensação leva até 2 dias úteis e seu plano é ativado automaticamente.' },
+  { q: 'Posso mudar de plano ou cancelar a assinatura?', a: 'Sim! Você pode fazer upgrade para um plano superior a qualquer momento — o valor é ajustado proporcionalmente. E o cancelamento é livre, sem multa, sem burocracia. Você continua com acesso até o fim do período já pago.' },
 ];
 
 function FaqItem({ q, a }: { q: string; a: string }) {
@@ -220,19 +267,31 @@ function BuyButton({ plan, label, className }: { plan: string; label: string; cl
   const navigate = useNavigate();
 
   const handleClick = async () => {
-    if (!isAuthenticated) {
-      navigate(`/register?plan=${plan}`);
-      return;
-    }
-
     setLoading(true);
     try {
-      const { data } = await paymentsApi.createCheckout({ plan });
+      // Try public checkout first (no auth needed)
+      const { data } = await paymentsApi.publicCheckout({ plan: plan.toUpperCase() });
       if (data.url) {
         window.location.href = data.url;
+        return;
       }
     } catch {
-      navigate('/settings?tab=plan');
+      // Public checkout failed — fall back to auth-based flow
+      if (isAuthenticated) {
+        // User is logged in, use auth checkout
+        try {
+          const { data } = await paymentsApi.createCheckout({ plan: plan.toUpperCase() });
+          if (data.url) {
+            window.location.href = data.url;
+            return;
+          }
+        } catch {
+          navigate('/settings?tab=plan');
+        }
+      } else {
+        // User not logged in, redirect to register with plan
+        navigate(`/register?plan=${plan.toLowerCase()}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -740,15 +799,25 @@ export default function LandingPage() {
                       </li>
                     ))}
                   </ul>
-                  <BuyButton
-                    plan={plan.name === 'IA Pro' ? 'PRO' : 'STARTER'}
-                    label={plan.cta}
-                    className={`w-full block text-center font-semibold px-5 py-3.5 rounded-lg transition-all duration-200 ${
-                      plan.popular
-                        ? 'bg-zap-500 hover:bg-zap-600 text-white shadow-lg shadow-zap-500/20 btn-glow'
-                        : 'bg-dark-700 hover:bg-dark-600 text-white border border-dark-600 hover:border-zap-500/30'
-                    }`}
-                  />
+            <BuyButton
+              plan={plan.name === 'IA Pro' ? 'PRO' : 'STARTER'}
+              label={plan.cta}
+              className={`w-full block text-center font-semibold px-5 py-3.5 rounded-lg transition-all duration-200 ${
+                plan.popular
+                  ? 'bg-zap-500 hover:bg-zap-600 text-white shadow-lg shadow-zap-500/20 btn-glow'
+                  : 'bg-dark-700 hover:bg-dark-600 text-white border border-dark-600 hover:border-zap-500/30'
+              }`}
+            />
+
+            {/* Payment Methods Badges */}
+            <div className="mt-4 pt-4 border-t border-dark-700/30">
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-[10px] text-dark-500 mr-1">Pagamento via</span>
+                <PaymentBadge type="pix" />
+                <PaymentBadge type="card" />
+                <PaymentBadge type="boleto" />
+              </div>
+            </div>
                 </div>
               </RevealSection>
             ))}
@@ -782,11 +851,65 @@ export default function LandingPage() {
                   label="CONTRATAR ENTERPRISE"
                   className="inline-block bg-zap-500 hover:bg-zap-600 text-white font-bold px-8 py-4 rounded-lg transition-all shadow-lg shadow-zap-500/30 btn-glow"
                 />
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  <span className="text-[10px] text-dark-500 mr-1">Pagamento via</span>
+                  <PaymentBadge type="pix" />
+                  <PaymentBadge type="card" />
+                  <PaymentBadge type="boleto" />
+                </div>
               </div>
             </div>
           </RevealSection>
 
-          <p className="text-center text-xs text-dark-500 mt-8">
+          {/* Payment Methods Trust Bar */}
+          <RevealSection delay={300}>
+            <div className="max-w-2xl mx-auto mt-10 p-5 rounded-xl bg-dark-800/30 border border-dark-700/30">
+              <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
+                {/* Mercado Pago Logo */}
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-zap-400" />
+                  <span className="text-xs text-dark-300">Mercado Pago</span>
+                </div>
+
+                <div className="hidden sm:block w-px h-6 bg-dark-600" />
+
+                {/* PIX */}
+                <div className="flex items-center gap-1.5">
+                  <PixIcon className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs text-emerald-400 font-medium">PIX</span>
+                  <span className="text-[10px] text-emerald-500/60">Instantâneo</span>
+                </div>
+
+                <div className="hidden sm:block w-px h-6 bg-dark-600" />
+
+                {/* Cartão */}
+                <div className="flex items-center gap-1.5">
+                  <CreditCard className="w-4 h-4 text-blue-400" />
+                  <span className="text-xs text-blue-400 font-medium">Cartão</span>
+                  <span className="text-[10px] text-blue-500/60">Crédito</span>
+                </div>
+
+                <div className="hidden sm:block w-px h-6 bg-dark-600" />
+
+                {/* Boleto */}
+                <div className="flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs text-amber-400 font-medium">Boleto</span>
+                  <span className="text-[10px] text-amber-500/60">Bancário</span>
+                </div>
+
+                <div className="hidden sm:block w-px h-6 bg-dark-600" />
+
+                {/* Security */}
+                <div className="flex items-center gap-1.5">
+                  <Lock className="w-4 h-4 text-zap-400" />
+                  <span className="text-xs text-dark-300">100% Seguro</span>
+                </div>
+              </div>
+            </div>
+          </RevealSection>
+
+          <p className="text-center text-xs text-dark-500 mt-6">
             Cancele quando quiser • sem multa • sem burocracia
           </p>
         </div>
@@ -849,6 +972,26 @@ export default function LandingPage() {
           </RevealSection>
           <div className="space-y-3">
             {faqs.map((faq, i) => (
+              <RevealSection key={faq.q} delay={i * 50}>
+                <FaqItem q={faq.q} a={faq.a} />
+              </RevealSection>
+            ))}
+          </div>
+
+          {/* Payment FAQ Subsection */}
+          <RevealSection delay={faqs.length * 50 + 100}>
+            <div className="mt-10 mb-6 flex items-center gap-3">
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-dark-600/50 to-transparent" />
+              <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-zap-500/8 border border-zap-500/15">
+                <ShieldCheck className="w-4 h-4 text-zap-400" />
+                <span className="text-xs font-semibold text-zap-400 tracking-wider uppercase">Pagamentos</span>
+              </div>
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-dark-600/50 to-transparent" />
+            </div>
+          </RevealSection>
+
+          <div className="space-y-3">
+            {paymentFaqs.map((faq, i) => (
               <RevealSection key={faq.q} delay={i * 50}>
                 <FaqItem q={faq.q} a={faq.a} />
               </RevealSection>

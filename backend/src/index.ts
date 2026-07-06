@@ -116,17 +116,8 @@ const authLightLimiter = rateLimit({
 });
 app.use('/api/auth', authLightLimiter);
 
-// Parse JSON body but preserve raw body for Stripe webhook signature verification
-app.use(
-  express.json({
-    limit: '10mb',
-    verify: (req: any, _res, buf) => {
-      // Store raw body for Stripe webhook signature verification
-      // This MUST run before any other body parser for the Stripe webhook route
-      req.rawBody = req.rawBody || buf.toString();
-    },
-  })
-);
+// Parse JSON body
+app.use(express.json({ limit: '10mb' }));
 
 // Make io accessible to routes
 app.set('io', io);

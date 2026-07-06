@@ -17,7 +17,9 @@ interface PrismaDelegateMock {
   findMany: ReturnType<typeof vi.fn>;
   create: ReturnType<typeof vi.fn>;
   update: ReturnType<typeof vi.fn>;
+  updateMany: ReturnType<typeof vi.fn>;
   delete: ReturnType<typeof vi.fn>;
+  deleteMany: ReturnType<typeof vi.fn>;
   count: ReturnType<typeof vi.fn>;
   upsert: ReturnType<typeof vi.fn>;
   groupBy: ReturnType<typeof vi.fn>;
@@ -60,7 +62,9 @@ function createDelegateMock(): PrismaDelegateMock {
     findMany: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn(),
     delete: vi.fn(),
+    deleteMany: vi.fn(),
     count: vi.fn(),
     upsert: vi.fn(),
     groupBy: vi.fn(),

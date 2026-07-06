@@ -8,6 +8,7 @@ import { dashboardApi, authApi } from '../../api';
 vi.mock('../../api', () => ({
   dashboardApi: { metrics: vi.fn() },
   authApi: { trial: vi.fn(), login: vi.fn(), register: vi.fn(), me: vi.fn(), updateProfile: vi.fn() },
+  paymentsApi: { getStatus: vi.fn().mockResolvedValue({ data: { configured: true } }) },
 }));
 
 // Mock recharts

@@ -9,6 +9,7 @@ import {
   setAccessTokenCookie,
   clearAuthCookies,
 } from '../middleware/auth';
+import { linkPaymentToUser } from '../services/payment';
 import {
   bruteForceProtection,
   registerRateLimit,
@@ -59,7 +60,7 @@ router.post('/register', registerRateLimit, async (req: AuthRequest, res: Respon
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
 
   try {
-    const { name, email, password, organizationName } = req.body;
+    const { name, email, password, organizationName, paymentId } = req.body;
 
     if (!name || !email || !password) {
       res.status(400).json({ error: 'Nome, email e senha são obrigatórios' });
@@ -74,14 +75,11 @@ router.post('/register', registerRateLimit, async (req: AuthRequest, res: Respon
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create organization if name provided
-    let organizationId: string | undefined;
-    if (organizationName) {
-      const org = await prisma.organization.create({
-        data: { name: organizationName },
-      });
-      organizationId = org.id;
-    }
+    // Create organization (always create an org for every user)
+    const org = await prisma.organization.create({
+      data: { name: organizationName || `${name}'s Organization` },
+    });
+    const organizationId = org.id;
 
     const user = await prisma.user.create({
       data: {
@@ -94,19 +92,49 @@ router.post('/register', registerRateLimit, async (req: AuthRequest, res: Respon
       },
     });
 
-    // Start 7-day free trial for new users
-    await startUserTrial(user.id);
+    // If paymentId was provided, try to link a public checkout payment
+    let linkedPlan: string | undefined;
+    if (paymentId) {
+      const linkResult = await linkPaymentToUser({
+        paymentId,
+        organizationId,
+        userId: user.id,
+        userEmail: email,
+      });
+
+      if (linkResult?.linked) {
+        linkedPlan = linkResult.plan;
+        console.log(`[Auth] User ${user.email} linked to payment ${paymentId}, plan=${linkResult.plan}`);
+      }
+    }
+
+    // Start 7-day free trial for new users (only if no payment was linked)
+    if (!paymentId) {
+      await startUserTrial(user.id);
+    }
 
     // Record successful registration for rate limiting
     recordRegisterAttempt(ip);
 
+    // Re-fetch user to get updated plan (from payment linking) and organization relation
+    const freshUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: { organization: true },
+    });
+
+    if (!freshUser) {
+      // Should never happen, but handle gracefully
+      res.status(500).json({ error: 'Erro ao criar conta' });
+      return;
+    }
+
     // Set httpOnly cookies + return tokens in body (for Railway proxy that strips cookies)
-    const { accessToken, refreshToken } = await setAuthCookies(user, res);
+    const { accessToken, refreshToken } = await setAuthCookies(freshUser, res);
 
     res.status(201).json({
       token: accessToken,
       refreshToken,
-      user: buildUserResponse(user),
+      user: buildUserResponse(freshUser),
     });
   } catch (error) {
     console.error('Register error:', error);
@@ -295,6 +323,59 @@ router.put('/profile', authenticate, async (req: AuthRequest, res: Response): Pr
     });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao atualizar perfil' });
+  }
+});
+
+// GET /api/auth/tour-status - Get tour completion status
+router.get('/tour-status', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.userId },
+      select: { tourDashboardCompleted: true, tourOnboardingCompleted: true },
+    });
+
+    if (!user) {
+      res.status(404).json({ error: 'Usuário não encontrado' });
+      return;
+    }
+
+    res.json({
+      dashboard: user.tourDashboardCompleted,
+      onboarding: user.tourOnboardingCompleted,
+    });
+  } catch (error) {
+    console.error('[Tour] Error fetching status:', error);
+    res.status(500).json({ error: 'Erro ao buscar status do tour' });
+  }
+});
+
+// PUT /api/auth/tour-status - Update tour completion status
+router.put('/tour-status', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { dashboard, onboarding } = req.body;
+
+    const data: any = {};
+    if (typeof dashboard === 'boolean') data.tourDashboardCompleted = dashboard;
+    if (typeof onboarding === 'boolean') data.tourOnboardingCompleted = onboarding;
+
+    if (Object.keys(data).length === 0) {
+      res.status(400).json({ error: 'Envie ao menos um campo: dashboard ou onboarding' });
+      return;
+    }
+
+    const user = await prisma.user.update({
+      where: { id: req.user!.userId },
+      data,
+      select: { tourDashboardCompleted: true, tourOnboardingCompleted: true },
+    });
+
+    res.json({
+      dashboard: user.tourDashboardCompleted,
+      onboarding: user.tourOnboardingCompleted,
+    });
+  } catch (error) {
+    console.error('[Tour] Error updating status:', error);
+    res.status(500).json({ error: 'Erro ao atualizar status do tour' });
   }
 });
 

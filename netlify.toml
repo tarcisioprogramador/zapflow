@@ -1,3 +1,18 @@
+# ═══════════════════════════════════════════════════════════
+# ZapFlow — Netlify Configuration
+# ═══════════════════════════════════════════════════════════
+#
+# ⚠️  ANTES DO DEPLOY, substitua <BACKEND_URL> pela URL real
+#     do backend (ex: app-zapflow.up.railway.app).
+#     Execute no terminal:
+#       find . -name 'netlify.toml' -exec sed -i 's|<BACKEND_URL>|app-zapflow.up.railway.app|g' {} +
+#     Ou edite manualmente as linhas de redirect abaixo.
+#
+#     Nem Netlify nem Vercel suportam variáveis de ambiente
+#     nos campos "to"/"destination" de redirects.
+#
+# ═══════════════════════════════════════════════════════════
+
 [build]
   command = "cd frontend && npm run build"
   publish = "frontend/dist"
@@ -7,12 +22,12 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "https://seu-app.railway.app/api/:splat"
+  to = "https://<BACKEND_URL>/api/:splat"
   status = 200
 
 [[redirects]]
   from = "/socket.io/*"
-  to = "https://seu-app.railway.app/socket.io/:splat"
+  to = "https://<BACKEND_URL>/socket.io/:splat"
   status = 200
 
 [[redirects]]

@@ -20,12 +20,14 @@ BACKEND_URL=https://seu-app.railway.app
 FRONTEND_URL=https://seu-frontend.vercel.app
 ```
 
-5. **Configure o build:**
-   - Root Directory: `backend`
-   - Build Command: `npm install && npx prisma generate && npx prisma db push`
-   - Start Command: `npx tsx src/index.ts`
+5. **Configure o build (Railway Dashboard → Settings → Deploy):**
+   - Root Directory: `.` (raiz do projeto — necessário para o Dockerfile.prod)
+   - Dockerfile Path: `backend/Dockerfile.prod`
 
 6. **O Railway vai fazer deploy automaticamente!**
+
+> ⚠️ O `Dockerfile.prod` usa build multi-stage com compilação TypeScript,
+>   usuário não-root e `tini` como init. O build pode levar 2-3 minutos na primeira vez.
 
 ### Deploy do Frontend (Vercel)
 

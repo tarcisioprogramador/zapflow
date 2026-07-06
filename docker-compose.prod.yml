@@ -348,16 +348,5 @@ networks:
   backend:
     name: zapflow-backend
     driver: bridge
-    internal: true
-    # ⚠️  internal: true — NÃO tem acesso à internet!
-    # Isso é seguro, mas significa que:
-    # - O backend NÃO consegue baixar pacotes npm
-    # - O backend NÃO consegue acessar APIs externas (Evolution API, Stripe, OpenAI)
-    # Se precisar de acesso externo do backend, mude para:
-    # driver: bridge
-    # ou adicione um proxy de saída.
-    #
-    # Para a maioria dos casos, use internal: false ou comente esta linha:
-    # internal: true
     driver_opts:
       com.docker.network.bridge.name: zapflow-be

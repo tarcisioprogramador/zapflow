@@ -67,8 +67,8 @@ describe('Auth Routes', () => {
       });
       const res = mockResponse();
 
-      // Mock no existing user
-      prismaMock.user.findUnique.mockResolvedValue(null);
+      // Mock no existing user (first call: check email)
+      prismaMock.user.findUnique.mockResolvedValueOnce(null);
 
       // Mock org creation
       prismaMock.organization.create.mockResolvedValue({
@@ -83,19 +83,43 @@ describe('Auth Routes', () => {
       });
 
       // Mock user creation
-      prismaMock.user.create.mockResolvedValue({
+      const newUser = {
         id: 'new-user-id',
         name: 'New User',
         email: 'new@email.com',
         password: 'hashed',
         role: 'OWNER',
         plan: 'FREE',
+        organizationId: 'new-org-id',
         avatar: null,
         phone: null,
-        organizationId: 'new-org-id',
+        trialStartedAt: null,
+        trialExpiresAt: null,
+        tourDashboardCompleted: false,
+        tourOnboardingCompleted: false,
         createdAt: new Date(),
         updatedAt: new Date(),
-      });
+      };
+      prismaMock.user.create.mockResolvedValue(newUser);
+
+      // Mock freshUser re-fetch (second call: after register, before response)
+      // Must include organization for buildUserResponse
+      const freshUserWithOrg = {
+        ...newUser,
+        organization: {
+          id: 'new-org-id',
+          name: 'New Org',
+          plan: 'FREE',
+          logo: null,
+          stripeCustomerId: null,
+          stripeSubscriptionId: null,
+          stripeSubscriptionStatus: null,
+          stripeCurrentPeriodEnd: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      };
+      prismaMock.user.findUnique.mockResolvedValue(freshUserWithOrg);
 
       await simulateRequest('post', '/register', req, res);
 

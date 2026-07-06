@@ -3030,6 +3030,8 @@ export namespace Prisma {
     plan: string | null
     avatar: string | null
     phone: string | null
+    tourDashboardCompleted: boolean | null
+    tourOnboardingCompleted: boolean | null
     trialStartedAt: Date | null
     trialExpiresAt: Date | null
     createdAt: Date | null
@@ -3046,6 +3048,8 @@ export namespace Prisma {
     plan: string | null
     avatar: string | null
     phone: string | null
+    tourDashboardCompleted: boolean | null
+    tourOnboardingCompleted: boolean | null
     trialStartedAt: Date | null
     trialExpiresAt: Date | null
     createdAt: Date | null
@@ -3062,6 +3066,8 @@ export namespace Prisma {
     plan: number
     avatar: number
     phone: number
+    tourDashboardCompleted: number
+    tourOnboardingCompleted: number
     trialStartedAt: number
     trialExpiresAt: number
     createdAt: number
@@ -3080,6 +3086,8 @@ export namespace Prisma {
     plan?: true
     avatar?: true
     phone?: true
+    tourDashboardCompleted?: true
+    tourOnboardingCompleted?: true
     trialStartedAt?: true
     trialExpiresAt?: true
     createdAt?: true
@@ -3096,6 +3104,8 @@ export namespace Prisma {
     plan?: true
     avatar?: true
     phone?: true
+    tourDashboardCompleted?: true
+    tourOnboardingCompleted?: true
     trialStartedAt?: true
     trialExpiresAt?: true
     createdAt?: true
@@ -3112,6 +3122,8 @@ export namespace Prisma {
     plan?: true
     avatar?: true
     phone?: true
+    tourDashboardCompleted?: true
+    tourOnboardingCompleted?: true
     trialStartedAt?: true
     trialExpiresAt?: true
     createdAt?: true
@@ -3201,6 +3213,8 @@ export namespace Prisma {
     plan: string
     avatar: string | null
     phone: string | null
+    tourDashboardCompleted: boolean
+    tourOnboardingCompleted: boolean
     trialStartedAt: Date | null
     trialExpiresAt: Date | null
     createdAt: Date
@@ -3234,6 +3248,8 @@ export namespace Prisma {
     plan?: boolean
     avatar?: boolean
     phone?: boolean
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: boolean
     trialExpiresAt?: boolean
     createdAt?: boolean
@@ -3257,6 +3273,8 @@ export namespace Prisma {
     plan?: boolean
     avatar?: boolean
     phone?: boolean
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: boolean
     trialExpiresAt?: boolean
     createdAt?: boolean
@@ -3274,6 +3292,8 @@ export namespace Prisma {
     plan?: boolean
     avatar?: boolean
     phone?: boolean
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: boolean
     trialExpiresAt?: boolean
     createdAt?: boolean
@@ -3313,6 +3333,8 @@ export namespace Prisma {
       plan: string
       avatar: string | null
       phone: string | null
+      tourDashboardCompleted: boolean
+      tourOnboardingCompleted: boolean
       trialStartedAt: Date | null
       trialExpiresAt: Date | null
       createdAt: Date
@@ -3725,6 +3747,8 @@ export namespace Prisma {
     readonly plan: FieldRef<"User", 'String'>
     readonly avatar: FieldRef<"User", 'String'>
     readonly phone: FieldRef<"User", 'String'>
+    readonly tourDashboardCompleted: FieldRef<"User", 'Boolean'>
+    readonly tourOnboardingCompleted: FieldRef<"User", 'Boolean'>
     readonly trialStartedAt: FieldRef<"User", 'DateTime'>
     readonly trialExpiresAt: FieldRef<"User", 'DateTime'>
     readonly createdAt: FieldRef<"User", 'DateTime'>
@@ -24333,6 +24357,8 @@ export namespace Prisma {
     plan: 'plan',
     avatar: 'avatar',
     phone: 'phone',
+    tourDashboardCompleted: 'tourDashboardCompleted',
+    tourOnboardingCompleted: 'tourOnboardingCompleted',
     trialStartedAt: 'trialStartedAt',
     trialExpiresAt: 'trialExpiresAt',
     createdAt: 'createdAt',
@@ -24670,6 +24696,13 @@ export namespace Prisma {
 
 
   /**
+   * Reference to a field of type 'Boolean'
+   */
+  export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
+    
+
+
+  /**
    * Reference to a field of type 'DateTime'
    */
   export type DateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DateTime'>
@@ -24680,13 +24713,6 @@ export namespace Prisma {
    * Reference to a field of type 'DateTime[]'
    */
   export type ListDateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'DateTime[]'>
-    
-
-
-  /**
-   * Reference to a field of type 'Boolean'
-   */
-  export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
     
 
 
@@ -24733,6 +24759,8 @@ export namespace Prisma {
     plan?: StringFilter<"User"> | string
     avatar?: StringNullableFilter<"User"> | string | null
     phone?: StringNullableFilter<"User"> | string | null
+    tourDashboardCompleted?: BoolFilter<"User"> | boolean
+    tourOnboardingCompleted?: BoolFilter<"User"> | boolean
     trialStartedAt?: DateTimeNullableFilter<"User"> | Date | string | null
     trialExpiresAt?: DateTimeNullableFilter<"User"> | Date | string | null
     createdAt?: DateTimeFilter<"User"> | Date | string
@@ -24755,6 +24783,8 @@ export namespace Prisma {
     plan?: SortOrder
     avatar?: SortOrderInput | SortOrder
     phone?: SortOrderInput | SortOrder
+    tourDashboardCompleted?: SortOrder
+    tourOnboardingCompleted?: SortOrder
     trialStartedAt?: SortOrderInput | SortOrder
     trialExpiresAt?: SortOrderInput | SortOrder
     createdAt?: SortOrder
@@ -24780,6 +24810,8 @@ export namespace Prisma {
     plan?: StringFilter<"User"> | string
     avatar?: StringNullableFilter<"User"> | string | null
     phone?: StringNullableFilter<"User"> | string | null
+    tourDashboardCompleted?: BoolFilter<"User"> | boolean
+    tourOnboardingCompleted?: BoolFilter<"User"> | boolean
     trialStartedAt?: DateTimeNullableFilter<"User"> | Date | string | null
     trialExpiresAt?: DateTimeNullableFilter<"User"> | Date | string | null
     createdAt?: DateTimeFilter<"User"> | Date | string
@@ -24802,6 +24834,8 @@ export namespace Prisma {
     plan?: SortOrder
     avatar?: SortOrderInput | SortOrder
     phone?: SortOrderInput | SortOrder
+    tourDashboardCompleted?: SortOrder
+    tourOnboardingCompleted?: SortOrder
     trialStartedAt?: SortOrderInput | SortOrder
     trialExpiresAt?: SortOrderInput | SortOrder
     createdAt?: SortOrder
@@ -24824,6 +24858,8 @@ export namespace Prisma {
     plan?: StringWithAggregatesFilter<"User"> | string
     avatar?: StringNullableWithAggregatesFilter<"User"> | string | null
     phone?: StringNullableWithAggregatesFilter<"User"> | string | null
+    tourDashboardCompleted?: BoolWithAggregatesFilter<"User"> | boolean
+    tourOnboardingCompleted?: BoolWithAggregatesFilter<"User"> | boolean
     trialStartedAt?: DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
     trialExpiresAt?: DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
     createdAt?: DateTimeWithAggregatesFilter<"User"> | Date | string
@@ -26326,6 +26362,8 @@ export namespace Prisma {
     plan?: string
     avatar?: string | null
     phone?: string | null
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: Date | string | null
     trialExpiresAt?: Date | string | null
     createdAt?: Date | string
@@ -26347,6 +26385,8 @@ export namespace Prisma {
     plan?: string
     avatar?: string | null
     phone?: string | null
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: Date | string | null
     trialExpiresAt?: Date | string | null
     createdAt?: Date | string
@@ -26368,6 +26408,8 @@ export namespace Prisma {
     plan?: StringFieldUpdateOperationsInput | string
     avatar?: NullableStringFieldUpdateOperationsInput | string | null
     phone?: NullableStringFieldUpdateOperationsInput | string | null
+    tourDashboardCompleted?: BoolFieldUpdateOperationsInput | boolean
+    tourOnboardingCompleted?: BoolFieldUpdateOperationsInput | boolean
     trialStartedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     trialExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -26389,6 +26431,8 @@ export namespace Prisma {
     plan?: StringFieldUpdateOperationsInput | string
     avatar?: NullableStringFieldUpdateOperationsInput | string | null
     phone?: NullableStringFieldUpdateOperationsInput | string | null
+    tourDashboardCompleted?: BoolFieldUpdateOperationsInput | boolean
+    tourOnboardingCompleted?: BoolFieldUpdateOperationsInput | boolean
     trialStartedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     trialExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -26410,6 +26454,8 @@ export namespace Prisma {
     plan?: string
     avatar?: string | null
     phone?: string | null
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: Date | string | null
     trialExpiresAt?: Date | string | null
     createdAt?: Date | string
@@ -26426,6 +26472,8 @@ export namespace Prisma {
     plan?: StringFieldUpdateOperationsInput | string
     avatar?: NullableStringFieldUpdateOperationsInput | string | null
     phone?: NullableStringFieldUpdateOperationsInput | string | null
+    tourDashboardCompleted?: BoolFieldUpdateOperationsInput | boolean
+    tourOnboardingCompleted?: BoolFieldUpdateOperationsInput | boolean
     trialStartedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     trialExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -26441,6 +26489,8 @@ export namespace Prisma {
     plan?: StringFieldUpdateOperationsInput | string
     avatar?: NullableStringFieldUpdateOperationsInput | string | null
     phone?: NullableStringFieldUpdateOperationsInput | string | null
+    tourDashboardCompleted?: BoolFieldUpdateOperationsInput | boolean
+    tourOnboardingCompleted?: BoolFieldUpdateOperationsInput | boolean
     trialStartedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     trialExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -28090,6 +28140,11 @@ export namespace Prisma {
     not?: NestedStringNullableFilter<$PrismaModel> | string | null
   }
 
+  export type BoolFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolFilter<$PrismaModel> | boolean
+  }
+
   export type DateTimeNullableFilter<$PrismaModel = never> = {
     equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
     in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
@@ -28181,6 +28236,8 @@ export namespace Prisma {
     plan?: SortOrder
     avatar?: SortOrder
     phone?: SortOrder
+    tourDashboardCompleted?: SortOrder
+    tourOnboardingCompleted?: SortOrder
     trialStartedAt?: SortOrder
     trialExpiresAt?: SortOrder
     createdAt?: SortOrder
@@ -28197,6 +28254,8 @@ export namespace Prisma {
     plan?: SortOrder
     avatar?: SortOrder
     phone?: SortOrder
+    tourDashboardCompleted?: SortOrder
+    tourOnboardingCompleted?: SortOrder
     trialStartedAt?: SortOrder
     trialExpiresAt?: SortOrder
     createdAt?: SortOrder
@@ -28213,6 +28272,8 @@ export namespace Prisma {
     plan?: SortOrder
     avatar?: SortOrder
     phone?: SortOrder
+    tourDashboardCompleted?: SortOrder
+    tourOnboardingCompleted?: SortOrder
     trialStartedAt?: SortOrder
     trialExpiresAt?: SortOrder
     createdAt?: SortOrder
@@ -28256,6 +28317,14 @@ export namespace Prisma {
     _max?: NestedStringNullableFilter<$PrismaModel>
   }
 
+  export type BoolWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolWithAggregatesFilter<$PrismaModel> | boolean
+    _count?: NestedIntFilter<$PrismaModel>
+    _min?: NestedBoolFilter<$PrismaModel>
+    _max?: NestedBoolFilter<$PrismaModel>
+  }
+
   export type DateTimeNullableWithAggregatesFilter<$PrismaModel = never> = {
     equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
     in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
@@ -28282,11 +28351,6 @@ export namespace Prisma {
     _count?: NestedIntFilter<$PrismaModel>
     _min?: NestedDateTimeFilter<$PrismaModel>
     _max?: NestedDateTimeFilter<$PrismaModel>
-  }
-
-  export type BoolFilter<$PrismaModel = never> = {
-    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
-    not?: NestedBoolFilter<$PrismaModel> | boolean
   }
 
   export type UserRelationFilter = {
@@ -28322,14 +28386,6 @@ export namespace Prisma {
     revoked?: SortOrder
     replacedBy?: SortOrder
     createdAt?: SortOrder
-  }
-
-  export type BoolWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
-    not?: NestedBoolWithAggregatesFilter<$PrismaModel> | boolean
-    _count?: NestedIntFilter<$PrismaModel>
-    _min?: NestedBoolFilter<$PrismaModel>
-    _max?: NestedBoolFilter<$PrismaModel>
   }
 
   export type UserListRelationFilter = {
@@ -29343,6 +29399,10 @@ export namespace Prisma {
     set?: string | null
   }
 
+  export type BoolFieldUpdateOperationsInput = {
+    set?: boolean
+  }
+
   export type NullableDateTimeFieldUpdateOperationsInput = {
     set?: Date | string | null
   }
@@ -29505,10 +29565,6 @@ export namespace Prisma {
     create?: XOR<UserCreateWithoutRefreshTokensInput, UserUncheckedCreateWithoutRefreshTokensInput>
     connectOrCreate?: UserCreateOrConnectWithoutRefreshTokensInput
     connect?: UserWhereUniqueInput
-  }
-
-  export type BoolFieldUpdateOperationsInput = {
-    set?: boolean
   }
 
   export type UserUpdateOneRequiredWithoutRefreshTokensNestedInput = {
@@ -30625,6 +30681,11 @@ export namespace Prisma {
     not?: NestedStringNullableFilter<$PrismaModel> | string | null
   }
 
+  export type NestedBoolFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolFilter<$PrismaModel> | boolean
+  }
+
   export type NestedDateTimeNullableFilter<$PrismaModel = never> = {
     equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
     in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
@@ -30703,6 +30764,14 @@ export namespace Prisma {
     not?: NestedIntNullableFilter<$PrismaModel> | number | null
   }
 
+  export type NestedBoolWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolWithAggregatesFilter<$PrismaModel> | boolean
+    _count?: NestedIntFilter<$PrismaModel>
+    _min?: NestedBoolFilter<$PrismaModel>
+    _max?: NestedBoolFilter<$PrismaModel>
+  }
+
   export type NestedDateTimeNullableWithAggregatesFilter<$PrismaModel = never> = {
     equals?: Date | string | DateTimeFieldRefInput<$PrismaModel> | null
     in?: Date[] | string[] | ListDateTimeFieldRefInput<$PrismaModel> | null
@@ -30729,19 +30798,6 @@ export namespace Prisma {
     _count?: NestedIntFilter<$PrismaModel>
     _min?: NestedDateTimeFilter<$PrismaModel>
     _max?: NestedDateTimeFilter<$PrismaModel>
-  }
-
-  export type NestedBoolFilter<$PrismaModel = never> = {
-    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
-    not?: NestedBoolFilter<$PrismaModel> | boolean
-  }
-
-  export type NestedBoolWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
-    not?: NestedBoolWithAggregatesFilter<$PrismaModel> | boolean
-    _count?: NestedIntFilter<$PrismaModel>
-    _min?: NestedBoolFilter<$PrismaModel>
-    _max?: NestedBoolFilter<$PrismaModel>
   }
 
   export type NestedIntWithAggregatesFilter<$PrismaModel = never> = {
@@ -31243,6 +31299,8 @@ export namespace Prisma {
     plan?: string
     avatar?: string | null
     phone?: string | null
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: Date | string | null
     trialExpiresAt?: Date | string | null
     createdAt?: Date | string
@@ -31263,6 +31321,8 @@ export namespace Prisma {
     plan?: string
     avatar?: string | null
     phone?: string | null
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: Date | string | null
     trialExpiresAt?: Date | string | null
     createdAt?: Date | string
@@ -31299,6 +31359,8 @@ export namespace Prisma {
     plan?: StringFieldUpdateOperationsInput | string
     avatar?: NullableStringFieldUpdateOperationsInput | string | null
     phone?: NullableStringFieldUpdateOperationsInput | string | null
+    tourDashboardCompleted?: BoolFieldUpdateOperationsInput | boolean
+    tourOnboardingCompleted?: BoolFieldUpdateOperationsInput | boolean
     trialStartedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     trialExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -31319,6 +31381,8 @@ export namespace Prisma {
     plan?: StringFieldUpdateOperationsInput | string
     avatar?: NullableStringFieldUpdateOperationsInput | string | null
     phone?: NullableStringFieldUpdateOperationsInput | string | null
+    tourDashboardCompleted?: BoolFieldUpdateOperationsInput | boolean
+    tourOnboardingCompleted?: BoolFieldUpdateOperationsInput | boolean
     trialStartedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     trialExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -31339,6 +31403,8 @@ export namespace Prisma {
     plan?: string
     avatar?: string | null
     phone?: string | null
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: Date | string | null
     trialExpiresAt?: Date | string | null
     createdAt?: Date | string
@@ -31359,6 +31425,8 @@ export namespace Prisma {
     plan?: string
     avatar?: string | null
     phone?: string | null
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: Date | string | null
     trialExpiresAt?: Date | string | null
     createdAt?: Date | string
@@ -31574,6 +31642,8 @@ export namespace Prisma {
     plan?: StringFilter<"User"> | string
     avatar?: StringNullableFilter<"User"> | string | null
     phone?: StringNullableFilter<"User"> | string | null
+    tourDashboardCompleted?: BoolFilter<"User"> | boolean
+    tourOnboardingCompleted?: BoolFilter<"User"> | boolean
     trialStartedAt?: DateTimeNullableFilter<"User"> | Date | string | null
     trialExpiresAt?: DateTimeNullableFilter<"User"> | Date | string | null
     createdAt?: DateTimeFilter<"User"> | Date | string
@@ -31955,6 +32025,8 @@ export namespace Prisma {
     plan?: string
     avatar?: string | null
     phone?: string | null
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: Date | string | null
     trialExpiresAt?: Date | string | null
     createdAt?: Date | string
@@ -31975,6 +32047,8 @@ export namespace Prisma {
     plan?: string
     avatar?: string | null
     phone?: string | null
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: Date | string | null
     trialExpiresAt?: Date | string | null
     createdAt?: Date | string
@@ -32149,6 +32223,8 @@ export namespace Prisma {
     plan?: StringFieldUpdateOperationsInput | string
     avatar?: NullableStringFieldUpdateOperationsInput | string | null
     phone?: NullableStringFieldUpdateOperationsInput | string | null
+    tourDashboardCompleted?: BoolFieldUpdateOperationsInput | boolean
+    tourOnboardingCompleted?: BoolFieldUpdateOperationsInput | boolean
     trialStartedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     trialExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -32169,6 +32245,8 @@ export namespace Prisma {
     plan?: StringFieldUpdateOperationsInput | string
     avatar?: NullableStringFieldUpdateOperationsInput | string | null
     phone?: NullableStringFieldUpdateOperationsInput | string | null
+    tourDashboardCompleted?: BoolFieldUpdateOperationsInput | boolean
+    tourOnboardingCompleted?: BoolFieldUpdateOperationsInput | boolean
     trialStartedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     trialExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -32940,6 +33018,8 @@ export namespace Prisma {
     plan?: string
     avatar?: string | null
     phone?: string | null
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: Date | string | null
     trialExpiresAt?: Date | string | null
     createdAt?: Date | string
@@ -32960,6 +33040,8 @@ export namespace Prisma {
     plan?: string
     avatar?: string | null
     phone?: string | null
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: Date | string | null
     trialExpiresAt?: Date | string | null
     createdAt?: Date | string
@@ -33062,6 +33144,8 @@ export namespace Prisma {
     plan?: StringFieldUpdateOperationsInput | string
     avatar?: NullableStringFieldUpdateOperationsInput | string | null
     phone?: NullableStringFieldUpdateOperationsInput | string | null
+    tourDashboardCompleted?: BoolFieldUpdateOperationsInput | boolean
+    tourOnboardingCompleted?: BoolFieldUpdateOperationsInput | boolean
     trialStartedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     trialExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -33082,6 +33166,8 @@ export namespace Prisma {
     plan?: StringFieldUpdateOperationsInput | string
     avatar?: NullableStringFieldUpdateOperationsInput | string | null
     phone?: NullableStringFieldUpdateOperationsInput | string | null
+    tourDashboardCompleted?: BoolFieldUpdateOperationsInput | boolean
+    tourOnboardingCompleted?: BoolFieldUpdateOperationsInput | boolean
     trialStartedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     trialExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -33222,6 +33308,8 @@ export namespace Prisma {
     plan?: string
     avatar?: string | null
     phone?: string | null
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: Date | string | null
     trialExpiresAt?: Date | string | null
     createdAt?: Date | string
@@ -33242,6 +33330,8 @@ export namespace Prisma {
     plan?: string
     avatar?: string | null
     phone?: string | null
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: Date | string | null
     trialExpiresAt?: Date | string | null
     createdAt?: Date | string
@@ -33304,6 +33394,8 @@ export namespace Prisma {
     plan?: StringFieldUpdateOperationsInput | string
     avatar?: NullableStringFieldUpdateOperationsInput | string | null
     phone?: NullableStringFieldUpdateOperationsInput | string | null
+    tourDashboardCompleted?: BoolFieldUpdateOperationsInput | boolean
+    tourOnboardingCompleted?: BoolFieldUpdateOperationsInput | boolean
     trialStartedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     trialExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -33324,6 +33416,8 @@ export namespace Prisma {
     plan?: StringFieldUpdateOperationsInput | string
     avatar?: NullableStringFieldUpdateOperationsInput | string | null
     phone?: NullableStringFieldUpdateOperationsInput | string | null
+    tourDashboardCompleted?: BoolFieldUpdateOperationsInput | boolean
+    tourOnboardingCompleted?: BoolFieldUpdateOperationsInput | boolean
     trialStartedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     trialExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -33444,6 +33538,8 @@ export namespace Prisma {
     plan?: string
     avatar?: string | null
     phone?: string | null
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: Date | string | null
     trialExpiresAt?: Date | string | null
     createdAt?: Date | string
@@ -33464,6 +33560,8 @@ export namespace Prisma {
     plan?: string
     avatar?: string | null
     phone?: string | null
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: Date | string | null
     trialExpiresAt?: Date | string | null
     createdAt?: Date | string
@@ -33526,6 +33624,8 @@ export namespace Prisma {
     plan?: StringFieldUpdateOperationsInput | string
     avatar?: NullableStringFieldUpdateOperationsInput | string | null
     phone?: NullableStringFieldUpdateOperationsInput | string | null
+    tourDashboardCompleted?: BoolFieldUpdateOperationsInput | boolean
+    tourOnboardingCompleted?: BoolFieldUpdateOperationsInput | boolean
     trialStartedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     trialExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -33546,6 +33646,8 @@ export namespace Prisma {
     plan?: StringFieldUpdateOperationsInput | string
     avatar?: NullableStringFieldUpdateOperationsInput | string | null
     phone?: NullableStringFieldUpdateOperationsInput | string | null
+    tourDashboardCompleted?: BoolFieldUpdateOperationsInput | boolean
+    tourOnboardingCompleted?: BoolFieldUpdateOperationsInput | boolean
     trialStartedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     trialExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -34219,6 +34321,8 @@ export namespace Prisma {
     plan?: string
     avatar?: string | null
     phone?: string | null
+    tourDashboardCompleted?: boolean
+    tourOnboardingCompleted?: boolean
     trialStartedAt?: Date | string | null
     trialExpiresAt?: Date | string | null
     createdAt?: Date | string
@@ -34289,6 +34393,8 @@ export namespace Prisma {
     plan?: StringFieldUpdateOperationsInput | string
     avatar?: NullableStringFieldUpdateOperationsInput | string | null
     phone?: NullableStringFieldUpdateOperationsInput | string | null
+    tourDashboardCompleted?: BoolFieldUpdateOperationsInput | boolean
+    tourOnboardingCompleted?: BoolFieldUpdateOperationsInput | boolean
     trialStartedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     trialExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -34309,6 +34415,8 @@ export namespace Prisma {
     plan?: StringFieldUpdateOperationsInput | string
     avatar?: NullableStringFieldUpdateOperationsInput | string | null
     phone?: NullableStringFieldUpdateOperationsInput | string | null
+    tourDashboardCompleted?: BoolFieldUpdateOperationsInput | boolean
+    tourOnboardingCompleted?: BoolFieldUpdateOperationsInput | boolean
     trialStartedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     trialExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -34329,6 +34437,8 @@ export namespace Prisma {
     plan?: StringFieldUpdateOperationsInput | string
     avatar?: NullableStringFieldUpdateOperationsInput | string | null
     phone?: NullableStringFieldUpdateOperationsInput | string | null
+    tourDashboardCompleted?: BoolFieldUpdateOperationsInput | boolean
+    tourOnboardingCompleted?: BoolFieldUpdateOperationsInput | boolean
     trialStartedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     trialExpiresAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store';
-import { authApi } from '../api';
+import { authApi, paymentsApi } from '../api';
 import { Zap, Eye, EyeOff, ArrowRight, Bot, MessageSquare, GitBranch, BarChart3, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -11,6 +11,8 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const setAuth = useAuthStore((s) => s.setAuth);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const selectedPlan = searchParams.get('plan');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,8 +20,22 @@ export default function RegisterPage() {
     try {
       const { data } = await authApi.register(form);
       setAuth(data.user, data.token, data.refreshToken);
+
+      // If user came from a plan CTA, redirect straight to Mercado Pago checkout
+      if (selectedPlan && ['STARTER', 'PRO', 'ENTERPRISE'].includes(selectedPlan.toUpperCase())) {
+        try {
+          const checkout = await paymentsApi.createCheckout({ plan: selectedPlan.toUpperCase() });
+          if (checkout.data.url) {
+            window.location.href = checkout.data.url;
+            return;
+          }
+        } catch {
+          // Fallback: if checkout fails, go to onboarding
+        }
+      }
+
       toast.success('Conta criada com sucesso!');
-      navigate('/');
+      navigate('/onboarding');
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Erro ao criar conta');
     } finally {

@@ -6,6 +6,13 @@ export interface User {
   plan: string;
   avatar?: string;
   organization?: Organization;
+  tourDashboardCompleted?: boolean;
+  tourOnboardingCompleted?: boolean;
+}
+
+export interface TourStatus {
+  dashboard: boolean;
+  onboarding: boolean;
 }
 
 export interface TrialStatus {

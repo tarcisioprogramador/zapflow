@@ -1,264 +1,324 @@
 /**
- * Payment Service - Stripe Integration
- * Handles checkout sessions, subscriptions, and webhook processing
+ * Payment Service - Mercado Pago Integration
+ * Handles checkout preferences, subscriptions, PIX, and webhook processing
  */
 
-import Stripe from 'stripe';
+import { MercadoPagoConfig, Preference, PreApproval, Payment as MpPayment } from 'mercadopago';
+import crypto from 'crypto';
 import prisma from '../config/database';
 
-const stripeKey = process.env.STRIPE_SECRET_KEY || '';
-export const stripe: Stripe | null = stripeKey ? new Stripe(stripeKey) : null;
+const mpAccessToken = process.env.MP_ACCESS_TOKEN || '';
+const mpPublicKey = process.env.MP_PUBLIC_KEY || '';
+const MP_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || '';
 
-export const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || '';
-export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+// Max age for webhook notification timestamps (5 minutes)
+const MAX_WEBHOOK_AGE_MS = 5 * 60 * 1000;
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-interface PlanConfig {
-  priceId: string;
-  name: string;
-  amount: number;
+let client: MercadoPagoConfig | null = null;
+try {
+  if (mpAccessToken) {
+    client = new MercadoPagoConfig({ accessToken: mpAccessToken });
+  }
+} catch {
+  console.warn('[Mercado Pago] Invalid access token');
 }
 
-// Plan configuration: maps plan IDs to Stripe Price IDs
-// These must be created in the Stripe Dashboard first
-const PLANS: Record<string, PlanConfig> = {
-  STARTER: {
-    priceId: process.env.STRIPE_PRICE_STARTER || '',
-    name: 'IA Starter',
-    amount: 9700, // R$ 97,00
-  },
-  PRO: {
-    priceId: process.env.STRIPE_PRICE_PRO || '',
-    name: 'IA Pro',
-    amount: 19700, // R$ 197,00
-  },
-  ENTERPRISE: {
-    priceId: process.env.STRIPE_PRICE_ENTERPRISE || '',
-    name: 'Enterprise',
-    amount: 49700, // R$ 497,00
-  },
+// Plan configuration
+const PLANS: Record<string, { name: string; amount: number }> = {
+  STARTER: { name: 'IA Starter', amount: 9700 },
+  PRO: { name: 'IA Pro', amount: 19700 },
+  ENTERPRISE: { name: 'Enterprise', amount: 49700 },
 };
 
 /**
- * Check Stripe configuration status
+ * Check Mercado Pago configuration status
  */
-export function getStripeStatus() {
-  const hasSecretKey = !!process.env.STRIPE_SECRET_KEY;
-  const hasPublishableKey = !!process.env.STRIPE_PUBLISHABLE_KEY;
-  const hasWebhookSecret = !!process.env.STRIPE_WEBHOOK_SECRET;
-  const hasStarterPrice = !!process.env.STRIPE_PRICE_STARTER;
-  const hasProPrice = !!process.env.STRIPE_PRICE_PRO;
-  const hasEnterprisePrice = !!process.env.STRIPE_PRICE_ENTERPRISE;
-
-  const isConfigured = hasSecretKey && hasPublishableKey && hasStarterPrice && hasProPrice && hasEnterprisePrice;
-  const canCheckout = isConfigured;
+export function getMpStatus() {
+  const hasAccessToken = !!process.env.MP_ACCESS_TOKEN;
+  const hasPublicKey = !!process.env.MP_PUBLIC_KEY;
+  const hasWebhookSecret = !!process.env.MP_WEBHOOK_SECRET;
 
   return {
-    configured: isConfigured,
-    canCheckout,
+    configured: hasAccessToken && hasPublicKey,
+    canCheckout: hasAccessToken,
     keys: {
-      secretKey: hasSecretKey,
-      publishableKey: hasPublishableKey,
+      accessToken: hasAccessToken,
+      publicKey: hasPublicKey,
       webhookSecret: hasWebhookSecret,
-      starterPrice: hasStarterPrice,
-      proPrice: hasProPrice,
-      enterprisePrice: hasEnterprisePrice,
     },
     missingKeys: [
-      !hasSecretKey && 'STRIPE_SECRET_KEY',
-      !hasPublishableKey && 'STRIPE_PUBLISHABLE_KEY',
-      !hasWebhookSecret && 'STRIPE_WEBHOOK_SECRET',
-      !hasStarterPrice && 'STRIPE_PRICE_STARTER',
-      !hasProPrice && 'STRIPE_PRICE_PRO',
-      !hasEnterprisePrice && 'STRIPE_PRICE_ENTERPRISE',
+      !hasAccessToken && 'MP_ACCESS_TOKEN',
+      !hasPublicKey && 'MP_PUBLIC_KEY',
+      !hasWebhookSecret && 'MP_WEBHOOK_SECRET',
     ].filter(Boolean),
-    nextStep: !hasSecretKey
-      ? 'Criar conta Stripe e copiar Secret Key'
-      : !hasStarterPrice
-        ? 'Rodar setup de produtos (POST /api/payments/setup-products)'
+    signatureValidation: hasWebhookSecret ? 'active' : 'disabled',
+    nextStep: !hasAccessToken
+      ? 'Criar conta no Mercado Pago e copiar Access Token'
+      : !hasPublicKey
+        ? 'Copiar Public Key do Mercado Pago'
         : !hasWebhookSecret
-          ? 'Configurar webhook no Stripe Dashboard'
+          ? 'Configurar webhook no Mercado Pago Developer Dashboard e copiar o Secret Key'
           : 'Pronto para vender!',
   };
 }
 
 /**
- * Create Stripe products and prices automatically
+ * Validate Mercado Pago webhook notification signature
+ * 
+ * Mercado Pago sends the x-signature header in format:
+ *   ts=<timestamp>,v1=<hmac_hex>
+ * 
+ * The manifest to sign is:
+ *   id:<data.id>;request-id:<x-request-id>;ts:<ts>;
+ * 
+ * Uses HMAC-SHA256 with the configured webhook secret key.
+ * Also validates the timestamp to prevent replay attacks.
+ * 
+ * If MP_WEBHOOK_SECRET is not configured, returns true with a warning.
  */
-export async function setupStripeProducts() {
-  if (!stripe) {
-    throw new Error('Stripe não configurado. Adicione STRIPE_SECRET_KEY no .env primeiro.');
+export function validateWebhookSignature(req: {
+  headers: Record<string, string | string[] | undefined>;
+  query: Record<string, string | undefined>;
+  body: any;
+}): { valid: boolean; reason?: string } {
+  // If no secret configured, warn but allow (backward compatibility)
+  if (!MP_WEBHOOK_SECRET) {
+    console.warn('[Mercado Pago] MP_WEBHOOK_SECRET não configurado — validação de assinatura desabilitada');
+    return { valid: true };
   }
 
-  const plans = [
-    {
-      id: 'zapflow-starter',
-      name: 'IA Starter',
-      description: 'Para quem está começando a automatizar o WhatsApp',
-      amount: 9700,
-      features: [
-        '1 Número conectado', '5 Atendentes no chat', 'CRM Kanban (2 quadros)',
-        '10 Fluxos automáticos', '5 Campanhas em massa', '15.000 Webhooks', '5M Tokens de IA',
-      ],
-    },
-    {
-      id: 'zapflow-pro',
-      name: 'IA Pro',
-      description: 'Para empresas que querem escalar com IA',
-      amount: 19700,
-      features: [
-        '1 Número conectado', 'Atendentes ilimitados', 'CRM Kanban (5 quadros)',
-        'Fluxos ilimitados', 'Campanhas ilimitadas', '30.000 Webhooks',
-        '10M Tokens de IA', 'IA Megan (Auto Reply 24h)', 'Integrações Post/Put/Get',
-      ],
-    },
-    {
-      id: 'zapflow-enterprise',
-      name: 'Enterprise',
-      description: 'Para grandes operações que exigem o máximo de performance',
-      amount: 49700,
-      features: [
-        'Números ilimitados', 'Atendentes ilimitados', 'CRM Kanban ilimitado',
-        'Fluxos ilimitados', 'Campanhas ilimitadas', 'Webhooks ilimitados',
-        '20M Tokens de IA', 'IA Megan (Auto Reply 24h)', 'Integrações Post/Put/Get',
-        'Suporte prioritário 24h', 'SLA 99.9%', 'Onboarding dedicado',
-      ],
-    },
-  ];
+  const xSignature = req.headers['x-signature'] as string | undefined;
+  const xRequestId = req.headers['x-request-id'] as string | undefined;
 
-  const results: Array<{ plan: string; planId: string; priceId: string }> = [];
-
-  for (const plan of plans) {
-    // Check if product already exists
-    const existingProducts = await stripe.products.search({
-      query: `metadata['app_id']:'${plan.id}'`,
-    });
-
-    let product;
-    if (existingProducts.data.length > 0) {
-      product = existingProducts.data[0];
-    } else {
-      product = await stripe.products.create({
-        name: plan.name,
-        description: plan.description,
-        metadata: {
-          app_id: plan.id,
-          features: JSON.stringify(plan.features),
-        },
-      });
-    }
-
-    // Check if price already exists
-    const existingPrices = await stripe.prices.list({
-      product: product.id,
-      active: true,
-      limit: 10,
-    });
-
-    const existingMonthlyPrice = existingPrices.data.find(
-      (p) => p.recurring?.interval === 'month'
-    );
-
-    let price;
-    if (existingMonthlyPrice) {
-      price = existingMonthlyPrice;
-    } else {
-      price = await stripe.prices.create({
-        product: product.id,
-        unit_amount: plan.amount,
-        currency: 'brl',
-        recurring: { interval: 'month' },
-        metadata: { app_id: plan.id },
-      });
-    }
-
-    results.push({
-      plan: plan.name,
-      planId: plan.id.replace('zapflow-', '').toUpperCase(),
-      priceId: price.id,
-    });
+  if (!xSignature) {
+    return { valid: false, reason: 'Header x-signature ausente' };
   }
 
-  return results;
+  // Parse x-signature: ts=<timestamp>,v1=<hmac>
+  const tsMatch = xSignature.match(/ts=(\d+)/);
+  const v1Match = xSignature.match(/v1=([a-f0-9]+)/);
+
+  if (!tsMatch || !v1Match) {
+    return { valid: false, reason: 'Formato do x-signature inválido' };
+  }
+
+  const ts = tsMatch[1];
+  const receivedHash = v1Match[1];
+
+  // Get data.id from query string (?!data.id=...) or from body.data?.id
+  const dataId =
+    req.query['data.id'] ||
+    req.query['data_id'] ||
+    req.body?.data?.id?.toString() ||
+    '';
+
+  if (!dataId) {
+    return { valid: false, reason: 'data.id não encontrado na requisição' };
+  }
+
+  // Validate timestamp (prevent replay attacks)
+  const timestamp = parseInt(ts, 10);
+  const now = Date.now();
+  if (isNaN(timestamp) || now - timestamp > MAX_WEBHOOK_AGE_MS) {
+    return {
+      valid: false,
+      reason: 'Timestamp do webhook expirado ou inválido (replay attack?)',
+    };
+  }
+
+  // Build the manifest string to sign
+  // Format: id:<data.id>;ts:<ts>;
+  // If x-request-id is present, append: request-id:<x-request-id>;
+  // Per Mercado Pago docs: omit missing values from the manifest.
+  let manifest = `id:${dataId};ts:${ts};`;
+  if (xRequestId) {
+    manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+  }
+
+  // Compute HMAC-SHA256
+  const computedHash = crypto
+    .createHmac('sha256', MP_WEBHOOK_SECRET)
+    .update(manifest, 'utf8')
+    .digest('hex');
+
+  // Constant-time comparison to prevent timing attacks
+  if (computedHash.length !== receivedHash.length) {
+    return { valid: false, reason: 'Assinatura inválida (tamanho diferente)' };
+  }
+
+  // Use timingSafeEqual for constant-time comparison
+  // Convert hex strings to buffers for proper byte comparison
+  try {
+    const computedBuf = Buffer.from(computedHash, 'hex');
+    const receivedBuf = Buffer.from(receivedHash, 'hex');
+    if (!crypto.timingSafeEqual(computedBuf, receivedBuf)) {
+      return { valid: false, reason: 'Assinatura inválida (hash não confere)' };
+    }
+  } catch {
+    return { valid: false, reason: 'Erro ao comparar assinaturas' };
+  }
+
+  console.log(`[Mercado Pago] Webhook signature verified ✓ (data.id=${dataId})`);
+  return { valid: true };
 }
 
 /**
- * Create a Stripe Checkout Session for subscription
+ * Create a Mercado Pago Checkout Pro preference (redirect-based)
+ * Supports PIX, card, and boleto as payment methods
  */
-export async function createCheckoutSession(params: {
+export async function createCheckoutPreference(params: {
   plan: 'STARTER' | 'PRO' | 'ENTERPRISE';
-  customerEmail: string;
-  userId: string;
-  organizationId: string;
+  customerEmail?: string;
+  userId?: string;
+  organizationId?: string;
   successUrl: string;
   cancelUrl: string;
+  isOneTime?: boolean;
 }) {
-  if (!stripe) {
-    throw new Error('Stripe não configurado. Adicione STRIPE_SECRET_KEY no .env');
+  if (!client) {
+    throw new Error('Mercado Pago não configurado. Adicione MP_ACCESS_TOKEN no .env');
   }
 
   const plan = PLANS[params.plan];
-  if (!plan || !plan.priceId) {
-    throw new Error(
-      `Plano ${params.plan} não configurado. Crie o preço no Stripe e adicione STRIPE_PRICE_${params.plan} no .env`
-    );
+  if (!plan) {
+    throw new Error(`Plano ${params.plan} inválido`);
   }
 
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    payment_method_types: ['card', 'boleto', 'pix'],
-    line_items: [
-      {
-        price: plan.priceId,
-        quantity: 1,
-      },
-    ],
-    customer_email: params.customerEmail,
-    metadata: {
-      userId: params.userId,
-      organizationId: params.organizationId,
-      plan: params.plan,
-    },
-    subscription_data: {
-      metadata: {
-        userId: params.userId,
-        organizationId: params.organizationId,
-        plan: params.plan,
-      },
-    },
-    success_url: params.successUrl,
-    cancel_url: params.cancelUrl,
-    locale: 'pt-BR',
+  const amountInReais = plan.amount / 100;
+  const paymentType = params.isOneTime ? 'Pagamento único' : 'Assinatura mensal';
+
+  const externalRef = JSON.stringify({
+    plan: params.plan,
+    ...(params.userId ? { userId: params.userId } : {}),
+    ...(params.organizationId ? { organizationId: params.organizationId } : {}),
   });
 
-  return { url: session.url, sessionId: session.id };
+  const body: any = {
+    items: [
+      {
+        id: params.plan,
+        title: `ZapFlow ${plan.name}`,
+        description: `${paymentType} - ${plan.name}`,
+        quantity: 1,
+        currency_id: 'BRL',
+        unit_price: amountInReais,
+      },
+    ],
+    back_urls: {
+      success: params.successUrl,
+      failure: params.cancelUrl,
+      pending: params.cancelUrl,
+    },
+    // auto_return: só funciona com URLs públicas (não localhost/127.0.0.1)
+    ...(params.successUrl.includes('://localhost') || params.successUrl.includes('://127.')
+      ? {}
+      : { auto_return: 'approved' }),
+    external_reference: externalRef,
+    payment_methods: {
+      installments: 1,
+    },
+    notification_url: params.successUrl.replace('/payment/success', '/api/webhook/mercadopago'),
+  };
+
+  // Only add payer if email is provided
+  if (params.customerEmail) {
+    body.payer = { email: params.customerEmail };
+    body.metadata = {
+      ...(params.userId ? { userId: params.userId } : {}),
+      ...(params.organizationId ? { organizationId: params.organizationId } : {}),
+      plan: params.plan,
+    };
+  }
+
+  const preference = new Preference(client);
+  const result = await preference.create({ body });
+
+  return {
+    url: result.init_point,
+    sandboxUrl: result.sandbox_init_point,
+    preferenceId: result.id,
+  };
 }
 
 /**
- * Create a portal session for managing the subscription
+ * Create a Mercado Pago subscription (PreApproval)
+ * Used for recurring billing
  */
-export async function createPortalSession(params: {
-  customerId: string;
-  returnUrl: string;
+export async function createSubscription(params: {
+  plan: 'STARTER' | 'PRO' | 'ENTERPRISE';
+  payerEmail: string;
+  userId: string;
+  organizationId: string;
+  backUrl: string;
 }) {
-  if (!stripe) throw new Error('Stripe não configurado');
+  if (!client) {
+    throw new Error('Mercado Pago não configurado');
+  }
 
-  const session = await stripe.billingPortal.sessions.create({
-    customer: params.customerId,
-    return_url: params.returnUrl,
+  const plan = PLANS[params.plan];
+  if (!plan) {
+    throw new Error(`Plano ${params.plan} inválido`);
+  }
+
+  const amountInReais = plan.amount / 100;
+
+  const preapproval = new PreApproval(client);
+
+  const result = await preapproval.create({
+    body: {
+      reason: `ZapFlow ${plan.name}`,
+      auto_recurring: {
+        frequency: 1,
+        frequency_type: 'months',
+        transaction_amount: amountInReais,
+        currency_id: 'BRL',
+      },
+      payer_email: params.payerEmail,
+      back_url: params.backUrl,
+      external_reference: JSON.stringify({
+        userId: params.userId,
+        organizationId: params.organizationId,
+        plan: params.plan,
+      }),
+      status: 'pending',
+    },
   });
 
-  return { url: session.url };
- }
+  return {
+    url: result.init_point,
+    preapprovalId: result.id,
+  };
+}
 
 /**
- * Retrieve a checkout session
+ * Get payment info by ID
  */
-export async function getCheckoutSession(sessionId: string) {
-  if (!stripe) throw new Error('Stripe não configurado');
-  return stripe.checkout.sessions.retrieve(sessionId, {
-    expand: ['subscription', 'customer', 'line_items'],
-  });
+export async function getPaymentInfo(paymentId: string) {
+  if (!client) throw new Error('Mercado Pago não configurado');
+
+  const payment = new MpPayment(client);
+  return payment.get({ id: paymentId });
+}
+
+/**
+ * Get preapproval (subscription) info by ID
+ */
+export async function getPreapprovalInfo(preapprovalId: string) {
+  if (!client) throw new Error('Mercado Pago não configurado');
+
+  const preapproval = new PreApproval(client);
+  return preapproval.get({ id: preapprovalId });
+}
+
+/**
+ * Create a portal-like link to Mercado Pago customer panel
+ * Mercado Pago doesn't have a full customer portal like Stripe,
+ * but we can redirect users to their subscription management page
+ */
+export function getCustomerPanelUrl(customerEmail: string) {
+  // Mercado Pago doesn't have a standard customer portal.
+  // Users manage subscriptions via the Mercado Pago app or through the platform.
+  return 'https://www.mercadopago.com.br/subscriptions';
 }
 
 /**
@@ -266,9 +326,8 @@ export async function getCheckoutSession(sessionId: string) {
  */
 export async function recordPayment(params: {
   organizationId: string;
-  stripePaymentIntentId?: string | null;
-  stripeInvoiceId?: string | null;
-  stripeSubscriptionId?: string | null;
+  mpPaymentId?: string | null;
+  mpPreapprovalId?: string | null;
   amount: number;
   currency?: string;
   status: 'pending' | 'succeeded' | 'failed' | 'refunded';
@@ -281,9 +340,8 @@ export async function recordPayment(params: {
     await prisma.payment.create({
       data: {
         organizationId: params.organizationId,
-        stripePaymentIntentId: params.stripePaymentIntentId,
-        stripeInvoiceId: params.stripeInvoiceId,
-        stripeSubscriptionId: params.stripeSubscriptionId,
+        stripePaymentIntentId: params.mpPaymentId, // reuse Stripe field for MP payment ID
+        stripeSubscriptionId: params.mpPreapprovalId, // reuse Stripe field for MP preapproval ID
         amount: params.amount,
         currency: params.currency || 'brl',
         status: params.status,
@@ -300,181 +358,222 @@ export async function recordPayment(params: {
 }
 
 /**
- * Handle Stripe webhook event
+ * Handle Mercado Pago webhook notification
+ * Types:
+ * - payment: when a payment status changes
+ * - subscription_preapproval: when a preapproval/subscription status changes
  */
-export async function handleWebhookEvent(event: Stripe.Event) {
-  console.log(`[Stripe] Processing event: ${event.type}`);
+export async function handleWebhookNotification(body: any) {
+  const { type, action, data } = body;
 
-  switch (event.type) {
-    case 'checkout.session.completed': {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const { userId, organizationId, plan } = session.metadata || {};
+  console.log(`[Mercado Pago] Processing notification: ${type}/${action}`);
 
-      if (!userId || !organizationId) {
-        console.error('[Stripe] Missing metadata in session:', session.id);
-        break;
+  try {
+    if (type === 'payment') {
+      const paymentId = data?.id;
+      if (!paymentId) {
+        console.warn('[Mercado Pago] Payment notification without payment ID');
+        return;
       }
 
-      const customerId = session.customer as string;
-      const subscriptionId = session.subscription as string;
-      const planName = plan || 'STARTER';
+      const paymentInfo = await getPaymentInfo(paymentId.toString());
 
-      // Update organization with Stripe customer info
-      await prisma.organization.update({
-        where: { id: organizationId },
-        data: {
-          stripeCustomerId: customerId,
-          stripeSubscriptionId: subscriptionId,
-          stripeSubscriptionStatus: 'active',
-          plan: planName,
-        },
-      });
+      // Parse external reference to get userId, orgId, plan
+      let externalRef: any = {};
+      try {
+        const ref = (paymentInfo as any).external_reference;
+        externalRef = ref ? JSON.parse(ref) : {};
+      } catch { /* ignore */ }
 
-      // Update user plan
-      await prisma.user.update({
-        where: { id: userId },
-        data: { plan: planName },
-      });
+      const organizationId = externalRef.organizationId;
+      const userId = externalRef.userId;
+      const planName = externalRef.plan || 'STARTER';
+      const status = paymentInfo.status;
+      const statusDetail = (paymentInfo as any).status_detail;
+      const payerEmail = (paymentInfo as any).payer?.email;
 
-      // Record initial payment
-      const amountTotal = session.amount_total || PLANS[planName]?.amount || 0;
-      const sess = session as any;
-      await recordPayment({
-        organizationId,
-        stripePaymentIntentId: sess.payment_intent as string,
-        stripeSubscriptionId: subscriptionId,
-        amount: amountTotal,
-        status: 'succeeded',
-        plan: planName,
-        description: `Assinatura ${PLANS[planName]?.name || planName}`,
-        periodStart: new Date(),
-      });
-
-      console.log(`[Stripe] Subscription created for user ${userId}, plan ${planName}`);
-      break;
-    }
-
-    case 'invoice.payment_succeeded': {
-      const invoice = event.data.object as Stripe.Invoice;
-      const invoiceWithSub = invoice as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null };
-      const subscriptionId = typeof invoiceWithSub.subscription === 'string' ? invoiceWithSub.subscription : null;
-      const customerId = invoice.customer as string;
-
-      if (subscriptionId) {
-        // Find org by subscription
-        const org = await prisma.organization.findFirst({
-          where: { stripeSubscriptionId: subscriptionId },
-        });
-
-        if (org) {
-          const inv = invoice as any;
-          const periodStart = inv.period_start ? new Date(inv.period_start * 1000) : null;
-          const periodEnd = inv.period_end ? new Date(inv.period_end * 1000) : null;
-
-          // Update subscription period
+      if (status === 'approved') {
+        if (organizationId && organizationId !== 'pending') {
+          // Normal checkout — user already exists
           await prisma.organization.update({
-            where: { id: org.id },
+            where: { id: organizationId },
             data: {
+              stripeCustomerId: payerEmail || null,
               stripeSubscriptionStatus: 'active',
-              stripeCurrentPeriodEnd: periodEnd,
+              plan: planName,
             },
           });
 
-          // Record the payment
-          const inv2 = invoice as any;
+          if (userId && userId !== 'pending') {
+            await prisma.user.update({
+              where: { id: userId },
+              data: { plan: planName },
+            });
+          }
+
           await recordPayment({
-            organizationId: org.id,
-            stripePaymentIntentId: inv2.payment_intent as string,
-            stripeInvoiceId: inv2.id,
-            stripeSubscriptionId: subscriptionId,
-            amount: inv2.total,
+            organizationId,
+            mpPaymentId: paymentId.toString(),
+            amount: (paymentInfo as any).transaction_amount * 100 || 0,
             status: 'succeeded',
-            plan: org.plan,
-            description: `Fatura ${org.plan} - ${inv2.number || ''}`.trim(),
-            periodStart,
-            periodEnd,
+            plan: planName,
+            description: `Pagamento ${planName} - ${(paymentInfo as any).payment_method?.id || ''}`.trim(),
+            periodStart: new Date(),
           });
 
-          console.log(`[Stripe] Payment succeeded for org ${org.id}: R$ ${(invoice.total / 100).toFixed(2)}`);
-        }
-      }
-      break;
-    }
+          console.log(`[Mercado Pago] Payment approved for org ${organizationId}`);
+        } else if (externalRef.plan) {
+          // Public checkout — has external ref but no user yet. Store payment info for later registration.
+          const amount = (paymentInfo as any).transaction_amount;
+          console.log(`[Mercado Pago] Public payment approved: ${paymentId}, plan=${planName}, email=${payerEmail}, amount=${amount}`);
 
-    case 'invoice.payment_failed': {
-      const failedInvoice = event.data.object as Stripe.Invoice;
-      const failedWithSub = failedInvoice as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null };
-      const failedSubId = typeof failedWithSub.subscription === 'string' ? failedWithSub.subscription : null;
-
-      if (failedSubId) {
-        const org = await prisma.organization.findFirst({
-          where: { stripeSubscriptionId: failedSubId },
-        });
-
-        if (org) {
           await recordPayment({
-            organizationId: org.id,
-            stripeInvoiceId: failedInvoice.id,
-            stripeSubscriptionId: failedSubId,
-            amount: failedInvoice.total,
-            status: 'failed',
-            plan: org.plan,
-            description: `Fatura não paga - ${org.plan}`,
+            organizationId: `pending_${paymentId}`, // placeholder org ID
+            mpPaymentId: paymentId.toString(),
+            amount: (amount || 0) * 100,
+            status: 'succeeded',
+            plan: planName,
+            description: `Pagamento público ${planName} - aguardando cadastro`,
+            periodStart: new Date(),
           });
-
-          await prisma.organization.update({
-            where: { id: org.id },
-            data: { stripeSubscriptionStatus: 'past_due' },
-          });
+        } else {
+          // No external reference — payment not created by our system, skip
+          console.log(`[Mercado Pago] Payment ${paymentId} approved but has no external_reference — skipping`);
         }
-        console.log(`[Stripe] Payment failed for subscription ${failedSubId}`);
-      }
-      break;
-    }
-
-    case 'customer.subscription.deleted':
-    case 'customer.subscription.updated': {
-      const subscription = event.data.object as Stripe.Subscription;
-      const subCustomerId = subscription.customer as string;
-
-      const org = await prisma.organization.findFirst({
-        where: { stripeCustomerId: subCustomerId },
-      });
-
-      if (org) {
-        const status = subscription.status;
-        const sub = subscription as any;
-        const periodEnd = sub.current_period_end
-          ? new Date(sub.current_period_end * 1000)
-          : null;
-
-        await prisma.organization.update({
-          where: { id: org.id },
-          data: {
-            stripeSubscriptionStatus: status,
-            stripeCurrentPeriodEnd: periodEnd,
-            stripeSubscriptionId: subscription.id,
-            plan: status === 'active' || status === 'trialing'
-              ? org.plan
-              : 'FREE',
-          },
+      } else if ((status === 'rejected' || status === 'cancelled') && organizationId) {
+        await recordPayment({
+          organizationId,
+          mpPaymentId: paymentId.toString(),
+          amount: (paymentInfo as any).transaction_amount * 100 || 0,
+          status: 'failed',
+          plan: planName,
+          description: `Pagamento ${status} - ${statusDetail || ''}`.trim(),
         });
+      }
+    } else if (type === 'subscription_preapproval') {
+      const preapprovalId = data?.id;
+      if (!preapprovalId) {
+        console.warn('[Mercado Pago] Preapproval notification without ID');
+        return;
+      }
 
-        if (status === 'canceled' || status === 'unpaid' || status === 'incomplete_expired') {
-          // Downgrade user plan too
-          await prisma.user.updateMany({
-            where: { organizationId: org.id },
-            data: { plan: 'FREE' },
+      const preapprovalInfo = await getPreapprovalInfo(preapprovalId.toString());
+
+      // Parse external reference
+      let externalRef: any = {};
+      try {
+        const ref = (preapprovalInfo as any).external_reference;
+        externalRef = ref ? JSON.parse(ref) : {};
+      } catch { /* ignore */ }
+
+      const organizationId = externalRef.organizationId;
+      const status = preapprovalInfo.status;
+
+      if (organizationId) {
+        if (status === 'authorized' || status === 'active') {
+          await prisma.organization.update({
+            where: { id: organizationId },
+            data: {
+              stripeSubscriptionId: preapprovalId.toString(),
+              stripeSubscriptionStatus: 'active',
+            },
+          });
+        } else if (status === 'cancelled' || status === 'paused') {
+          await prisma.organization.update({
+            where: { id: organizationId },
+            data: {
+              stripeSubscriptionStatus: status === 'cancelled' ? 'canceled' : 'paused',
+            },
           });
 
-          console.log(`[Stripe] Subscription ${status} for org ${org.id}, downgraded to FREE`);
+          if (status === 'cancelled') {
+            await prisma.user.updateMany({
+              where: { organizationId },
+              data: { plan: 'FREE' },
+            });
+          }
         }
       }
-      break;
+    }
+  } catch (error) {
+    console.error('[Mercado Pago] Webhook processing error:', error);
+  }
+}
+
+/**
+ * Link a public checkout payment to a newly created user/organization.
+ * Called after registration on the success page.
+ */
+export async function linkPaymentToUser(params: {
+  paymentId: string;
+  organizationId: string;
+  userId: string;
+  userEmail: string;
+}): Promise<{ plan: string; planName: string; linked: boolean } | null> {
+  if (!client) {
+    console.warn('[Payment] Cannot link payment — Mercado Pago não configurado');
+    return null;
+  }
+
+  try {
+    const paymentInfo = await getPaymentInfo(params.paymentId);
+    const status = paymentInfo.status;
+    const payerEmail = (paymentInfo as any).payer?.email;
+
+    if (status !== 'approved') {
+      console.log(`[Payment] Payment ${params.paymentId} status is "${status}" — not linking`);
+      return null;
     }
 
-    default:
-      console.log(`[Stripe] Unhandled event type: ${event.type}`);
+    // Security: validate that the registering user's email matches the MP payer email
+    if (payerEmail && payerEmail.toLowerCase() !== params.userEmail.toLowerCase()) {
+      console.warn(`[Payment] Email mismatch for payment ${params.paymentId}: registered=${params.userEmail}, mp=${payerEmail} — not linking`);
+      return null;
+    }
+
+    // Parse external reference to get plan name
+    let externalRef: any = {};
+    try {
+      const ref = (paymentInfo as any).external_reference;
+      externalRef = ref ? JSON.parse(ref) : {};
+    } catch { /* ignore */ }
+
+    const planName = externalRef.plan || 'STARTER';
+    const amount = (paymentInfo as any).transaction_amount;
+
+    // Update organization with plan info
+    await prisma.organization.update({
+      where: { id: params.organizationId },
+      data: {
+        stripeCustomerId: payerEmail || null,
+        stripeSubscriptionStatus: 'active',
+        plan: planName,
+      },
+    });
+
+    // Update user plan
+    await prisma.user.update({
+      where: { id: params.userId },
+      data: { plan: planName },
+    });
+
+    // Migrate payment records from pending_{paymentId} placeholder to real org
+    const pendingOrgId = `pending_${params.paymentId}`;
+    await prisma.payment.updateMany({
+      where: { organizationId: pendingOrgId },
+      data: { organizationId: params.organizationId },
+    });
+
+    console.log(`[Payment] Public checkout payment ${params.paymentId} linked to org ${params.organizationId}, plan=${planName}`);
+
+    return {
+      plan: planName,
+      planName: PLANS[planName]?.name || planName,
+      linked: true,
+    };
+  } catch (error) {
+    console.error('[Payment] Error linking payment to user:', error);
+    return null;
   }
 }
 

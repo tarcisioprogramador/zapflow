@@ -4,36 +4,33 @@ import paymentsRouter from '../routes/payments';
 
 // Mock the payment service
 vi.mock('../services/payment', () => ({
-  STRIPE_PUBLISHABLE_KEY: 'pk_test_mock',
-  STRIPE_SECRET_KEY: 'sk_test_mock',
-  STRIPE_WEBHOOK_SECRET: 'whsec_test',
-  stripe: { webhooks: { constructEvent: vi.fn() } },
   PLANS: {
-    STARTER: { name: 'Starter', amount: 9700, priceId: 'price_starter' },
-    PRO: { name: 'Professional', amount: 19700, priceId: 'price_pro' },
-    ENTERPRISE: { name: 'Enterprise', amount: 49700, priceId: 'price_enterprise' },
+    STARTER: { name: 'IA Starter', amount: 9700 },
+    PRO: { name: 'IA Pro', amount: 19700 },
+    ENTERPRISE: { name: 'Enterprise', amount: 49700 },
   },
-  createCheckoutSession: vi.fn().mockResolvedValue({
-    id: 'cs_test_123',
-    url: 'https://checkout.stripe.com/test',
+  createCheckoutPreference: vi.fn().mockResolvedValue({
+    url: 'https://checkout.mercadopago.com/test',
+    preferenceId: 'pref_123',
   }),
-  createPortalSession: vi.fn().mockResolvedValue({
-    url: 'https://portal.stripe.com/test',
+  createSubscription: vi.fn().mockResolvedValue({
+    url: 'https://subscription.mercadopago.com/test',
+    preapprovalId: 'preapp_123',
   }),
-  getCheckoutSession: vi.fn().mockResolvedValue({
-    id: 'cs_test_123',
-    status: 'complete',
-    customer_email: 'test@email.com',
+  getPaymentInfo: vi.fn().mockResolvedValue({
+    id: 'pay_123',
+    status: 'approved',
+    payer: { email: 'test@email.com' },
     metadata: { plan: 'PRO' },
-    subscription: 'sub_123',
   }),
-  handleWebhookEvent: vi.fn().mockResolvedValue(undefined),
-  getStripeStatus: vi.fn().mockReturnValue({ configured: true, hasPrices: true }),
-  setupStripeProducts: vi.fn().mockResolvedValue([
-    { planId: 'STARTER', priceId: 'price_starter', name: 'Starter' },
-    { planId: 'PRO', priceId: 'price_pro', name: 'Professional' },
-    { planId: 'ENTERPRISE', priceId: 'price_enterprise', name: 'Enterprise' },
-  ]),
+  getPreapprovalInfo: vi.fn().mockResolvedValue({
+    id: 'preapp_123',
+    status: 'authorized',
+  }),
+  handleWebhookNotification: vi.fn().mockResolvedValue(undefined),
+  getMpStatus: vi.fn().mockReturnValue({ configured: true, canCheckout: true }),
+  getCustomerPanelUrl: vi.fn().mockReturnValue('https://www.mercadopago.com.br/subscriptions'),
+  recordPayment: vi.fn().mockResolvedValue(undefined),
 }));
 
 function simulateRequest(method: string, path: string, req: any, res: any) {
@@ -69,7 +66,7 @@ describe('Payments Routes', () => {
   };
 
   describe('GET /config', () => {
-    it('should return Stripe config with publishable key and plans', async () => {
+    it('should return MP config with public key and plans', async () => {
       const req = mockAuthRequest();
       const res = mockResponse();
 
@@ -77,10 +74,10 @@ describe('Payments Routes', () => {
 
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          publishableKey: 'pk_test_mock',
+          publicKey: '',
           plans: expect.arrayContaining([
-            expect.objectContaining({ id: 'STARTER', name: 'Starter' }),
-            expect.objectContaining({ id: 'PRO', name: 'Professional' }),
+            expect.objectContaining({ id: 'STARTER', name: 'IA Starter' }),
+            expect.objectContaining({ id: 'PRO', name: 'IA Pro' }),
             expect.objectContaining({ id: 'ENTERPRISE', name: 'Enterprise' }),
           ]),
         })
@@ -89,7 +86,7 @@ describe('Payments Routes', () => {
   });
 
   describe('GET /status', () => {
-    it('should return Stripe configuration status', async () => {
+    it('should return Mercado Pago configuration status', async () => {
       const req = mockAuthRequest();
       const res = mockResponse();
 
@@ -260,7 +257,7 @@ describe('Payments Routes', () => {
   });
 
   describe('POST /create-checkout', () => {
-    it('should create a checkout session for a valid plan', async () => {
+    it('should create a Mercado Pago checkout for a valid plan', async () => {
       const req = mockAuthRequest({ body: { plan: 'PRO' } });
       const res = mockResponse();
 
@@ -271,7 +268,7 @@ describe('Payments Routes', () => {
       await simulateRequest('post', '/create-checkout', req, res);
 
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'cs_test_123', url: expect.any(String) })
+        expect.objectContaining({ url: expect.any(String), preferenceId: expect.any(String) })
       );
     });
 
@@ -298,7 +295,7 @@ describe('Payments Routes', () => {
   });
 
   describe('POST /portal', () => {
-    it('should create a customer portal session', async () => {
+    it('should return Mercado Pago management URL', async () => {
       const req = mockAuthRequest();
       const res = mockResponse();
 
@@ -313,12 +310,12 @@ describe('Payments Routes', () => {
       );
     });
 
-    it('should reject when user has no stripe customer', async () => {
+    it('should reject when user has no subscriptions', async () => {
       const req = mockAuthRequest();
       const res = mockResponse();
 
       prismaMock.user.findUnique.mockResolvedValue(
-        createTestUser({ organization: { ...mockOrg, stripeCustomerId: null } })
+        createTestUser({ organization: { ...mockOrg, stripeCustomerId: null, stripeSubscriptionId: null } })
       );
 
       await simulateRequest('post', '/portal', req, res);
@@ -328,7 +325,7 @@ describe('Payments Routes', () => {
   });
 
   describe('POST /setup-products', () => {
-    it('should setup Stripe products', async () => {
+    it('should return Mercado Pago plan info', async () => {
       const req = mockAuthRequest();
       const res = mockResponse();
 
@@ -337,8 +334,8 @@ describe('Payments Routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
-          products: expect.arrayContaining([
-            expect.objectContaining({ planId: 'STARTER' }),
+          plans: expect.arrayContaining([
+            expect.objectContaining({ id: 'STARTER' }),
           ]),
         })
       );

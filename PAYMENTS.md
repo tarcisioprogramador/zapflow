@@ -4,7 +4,7 @@
 
 1. [Visão Geral](#1-visão-geral)
 2. [Pré-requisitos](#2-pré-requisitos)
-3. [Configuração do Stripe](#3-configuração-do-stripe)
+3. [Configuração do Mercado Pago](#3-configuração-do-mercado-pago)
 4. [Modelo de Dados](#4-modelo-de-dados)
 5. [API Endpoints](#5-api-endpoints)
 6. [Fluxo Completo](#6-fluxo-completo)
@@ -16,13 +16,14 @@
 
 ## 1. Visão Geral
 
-O ZapFlow utiliza **Stripe** como gateway de pagamento com suporte a:
+O ZapFlow utiliza **Mercado Pago** como gateway de pagamento com suporte a:
 
-- ✅ Assinaturas recorrentes (mensal)
-- ✅ Cartão de crédito e Boleto bancário
-- ✅ Checkout incorporado (Stripe Checkout)
-- ✅ Portal do cliente (gerenciar cartão, plano, cancelar)
-- ✅ Webhooks com verificação de assinatura
+- ✅ Assinaturas recorrentes (mensal) via PreApproval
+- ✅ **PIX** (pagamento instantâneo — já nativo!)
+- ✅ Cartão de crédito (até 1 parcela)
+- ✅ Boleto bancário
+- ✅ Checkout Pro (redirecionamento para página segura do Mercado Pago)
+- ✅ Webhooks com status de pagamento e assinatura
 - ✅ Histórico completo de transações
 - ✅ 3 planos: **IA Starter (R$97)**, **IA Pro (R$197)**, **Enterprise (R$497)**
 - ✅ Suporte a teste gratuito de 7 dias
@@ -32,93 +33,83 @@ O ZapFlow utiliza **Stripe** como gateway de pagamento com suporte a:
 ## 2. Pré-requisitos
 
 ```bash
-# Stripe SDK já está no package.json:
+# Mercado Pago SDK já está no package.json:
 cd backend
-npm install stripe
+npm install mercadopago
 ```
 
 ### Variáveis de ambiente necessárias (.env)
 
 ```env
-# ─── Stripe API Keys ──────────────────────────────
-STRIPE_SECRET_KEY=sk_test_xxxxxxxxxxxxxxxxxxxxx
-STRIPE_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxxxxxxxxxxx
-STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxx
+# ─── Mercado Pago (Payment Processing) ───────────────────────
+# 1. Crie sua conta em https://www.mercadopago.com.br/registration-mp
+# 2. Vá em: Seu negócio > Configurações > Credenciais
+# 3. Copie as chaves abaixo (modo produção)
+MP_ACCESS_TOKEN="APP_USR-..."
+MP_PUBLIC_KEY="APP_USR-..."
 
-# ─── Stripe Price IDs (criar via setup automático) ─
-STRIPE_PRICE_STARTER=price_xxxxxxxxxxxxx
-STRIPE_PRICE_PRO=price_xxxxxxxxxxxxx
-STRIPE_PRICE_ENTERPRISE=price_xxxxxxxxxxxxx
+# 4. Vá em: Seu negócio > Configurações > Webhooks
+#    URL: https://SEU-DOMINIO/api/webhook/mercadopago
+#    Eventos: payment, subscription_preapproval
+# 5. (Opcional) Copie um secret para validar notificações
+MP_WEBHOOK_SECRET="..."
 ```
 
 ---
 
-## 3. Configuração do Stripe
+## 3. Configuração do Mercado Pago
 
-### Passo 1: Criar conta no Stripe
+### Passo 1: Criar conta no Mercado Pago
 
-1. Acesse [dashboard.stripe.com/register](https://dashboard.stripe.com/register)
-2. Complete o cadastro
+1. Acesse [mercadopago.com.br/registration-mp](https://www.mercadopago.com.br/registration-mp)
+2. Pode criar como **Pessoa Física (CPF)** — não precisa de CNPJ!
+3. Complete o cadastro
 
 ### Passo 2: Obter chaves de API
 
-1. Vá em **Developers > API keys**
-2. Copie a **Secret Key** (`sk_test_...`) e **Publishable Key** (`pk_test_...`)
+1. Acesse **Seu negócio > Configurações > Credenciais**
+2. Copie o **Access Token** (`APP_USR-...`) e a **Public Key** (`APP_USR-...`)
 3. Adicione no `.env`:
    ```env
-   STRIPE_SECRET_KEY=sk_test_...
-   STRIPE_PUBLISHABLE_KEY=pk_test_...
+   MP_ACCESS_TOKEN=APP_USR-...
+   MP_PUBLIC_KEY=APP_USR-...
    ```
 
-### Passo 3: Criar produtos e preços
-
-**Opção A — Automática (recomendado):**
-
-Com `STRIPE_SECRET_KEY` configurada, faça uma requisição:
+### Passo 3: Verificar configuração
 
 ```bash
-curl -X POST http://localhost:3001/api/payments/setup-products \
-  -H "Authorization: Bearer SEU_TOKEN" \
-  -H "Content-Type: application/json"
+curl http://localhost:3001/api/payments/status \
+  -H "Authorization: Bearer SEU_TOKEN"
 ```
 
-**Resposta:**
+**Resposta esperada:**
 ```json
 {
-  "success": true,
-  "products": [
-    { "plan": "IA Starter", "planId": "STARTER", "priceId": "price_abc123" },
-    { "plan": "IA Pro", "planId": "PRO", "priceId": "price_def456" },
-    { "plan": "Enterprise", "planId": "ENTERPRISE", "priceId": "price_ghi789" }
-  ],
-  "envVars": [
-    "STRIPE_PRICE_STARTER=price_abc123",
-    "STRIPE_PRICE_PRO=price_def456",
-    "STRIPE_PRICE_ENTERPRISE=price_ghi789"
-  ]
+  "configured": true,
+  "canCheckout": true,
+  "keys": { "accessToken": true, "publicKey": true, "webhookSecret": false },
+  "missingKeys": ["MP_WEBHOOK_SECRET"],
+  "nextStep": "Configurar webhook no Mercado Pago Developer Dashboard"
 }
-```
-
-Copie os `envVars` para seu `.env`.
-
-**Opção B — Manual:**
-
-```bash
-cd backend
-node scripts/setup-stripe.js
 ```
 
 ### Passo 4: Configurar Webhook
 
-1. No Stripe Dashboard: **Developers > Webhooks > Add endpoint**
-2. **URL:** `https://SEU-DOMINIO/api/webhook/stripe`
-3. **Eventos para escutar:**
-   - `checkout.session.completed`
-   - `invoice.payment_succeeded`
-   - `invoice.payment_failed`
-   - `customer.subscription.deleted`
-   - `customer.subscription.updated`
-4. Copie o **Signing Secret** e adicione como `STRIPE_WEBHOOK_SECRET`
+1. No Mercado Pago: **Seu negócio > Configurações > Webhooks**
+2. Clique em **"Adicionar Webhook"**
+3. **URL:** `https://SEU-DOMINIO/api/webhook/mercadopago`
+4. **Eventos para escutar:**
+   - `payment` — notificações de pagamento (PIX, cartão, boleto)
+   - `subscription_preapproval` — notificações de assinatura (renovação, cancelamento)
+
+> **Diferente do Stripe:** o Mercado Pago não exige um signing secret obrigatório para webhooks. O campo `MP_WEBHOOK_SECRET` é opcional.
+
+### Passo 5: Testar com cartão de testes
+
+Use os cartões de teste do Mercado Pago:
+- **Mastercard:** `5031 4332 1540 6351` — CVV: `123` — Vencimento: `11/25`
+- **Visa:** `4235 6477 2802 5682` — CVV: `123` — Vencimento: `11/25`
+- **PIX:** Gere o QR Code e pague (simulado no Sandbox)
 
 ---
 
@@ -129,9 +120,9 @@ node scripts/setup-stripe.js
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
 | `id` | UUID | Identificador único |
-| `stripePaymentIntentId` | String? | ID do Payment Intent no Stripe |
-| `stripeInvoiceId` | String? | ID da Invoice no Stripe |
-| `stripeSubscriptionId` | String? | ID da Subscription no Stripe |
+| `stripePaymentIntentId` | String? | ID do pagamento no Mercado Pago (reusa campo legado) |
+| `stripeInvoiceId` | String? | Reservado para fatura |
+| `stripeSubscriptionId` | String? | ID da PreApproval (assinatura) no Mercado Pago |
 | `amount` | Int | Valor em centavos (R$97,00 = 9700) |
 | `currency` | String | Moeda (padrão: "brl") |
 | `status` | String | pending, succeeded, failed, refunded |
@@ -146,16 +137,53 @@ node scripts/setup-stripe.js
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
-| `stripeCustomerId` | String? | ID do cliente no Stripe |
-| `stripeSubscriptionId` | String? | ID da assinatura no Stripe |
-| `stripeSubscriptionStatus` | String? | Status: active, past_due, canceled |
+| `stripeCustomerId` | String? | Email do pagador (reusa campo legado) |
+| `stripeSubscriptionId` | String? | ID da PreApproval (assinatura) no Mercado Pago |
+| `stripeSubscriptionStatus` | String? | Status: active, authorized, cancelled, paused |
 | `stripeCurrentPeriodEnd` | DateTime? | Fim do período atual |
+
+> **Nota:** Os campos continuam com prefixo `stripe` no banco para evitar migração de schema. O serviço reusa esses campos para armazenar dados do Mercado Pago.
 
 ---
 
 ## 5. API Endpoints
 
-### 5.1. Checkout
+### 5.1. Configuração
+
+```http
+GET /api/payments/config
+Authorization: Bearer <token>
+```
+
+**Resposta:**
+```json
+{
+  "publicKey": "APP_USR-...",
+  "plans": [
+    { "id": "STARTER", "name": "IA Starter", "amount": 9700 },
+    { "id": "PRO", "name": "IA Pro", "amount": 19700 },
+    { "id": "ENTERPRISE", "name": "Enterprise", "amount": 49700 }
+  ]
+}
+```
+
+```http
+GET /api/payments/status
+Authorization: Bearer <token>
+```
+
+**Resposta:**
+```json
+{
+  "configured": true,
+  "canCheckout": true,
+  "keys": { "accessToken": true, "publicKey": true, "webhookSecret": false },
+  "missingKeys": [],
+  "nextStep": "Pronto para vender!"
+}
+```
+
+### 5.2. Checkout (Assinatura)
 
 ```http
 POST /api/payments/create-checkout
@@ -170,31 +198,39 @@ Content-Type: application/json
 **Resposta:**
 ```json
 {
-  "url": "https://checkout.stripe.com/c/pay/cs_xxx",
-  "sessionId": "cs_xxx"
+  "url": "https://www.mercadopago.com.br/subscriptions/preapproval/...",
+  "preferenceId": "preapp_xxx"
 }
 ```
 
-> O usuário é redirecionado para esta URL. Após pagamento, redirecionado de volta para `/payment/success?session_id=cs_xxx`.
+> O usuário é redirecionado para esta URL. Após aprovar a assinatura, é redirecionado de volta para `/payment/success?preapproval_id=preapp_xxx`.
 
-### 5.2. Verificar Sessão
+### 5.3. Verificar Pagamento / Assinatura
 
 ```http
-GET /api/payments/session/:sessionId
+GET /api/payments/session/:paymentIdOrPreapprovalId
 Authorization: Bearer <token>
 ```
 
-**Resposta:**
+**Resposta (pagamento):**
 ```json
 {
   "status": "complete",
   "customerEmail": "cliente@email.com",
-  "plan": "PRO",
-  "subscriptionId": "sub_xxx"
+  "plan": "PRO"
 }
 ```
 
-### 5.3. Status da Assinatura
+**Resposta (assinatura/preapproval):**
+```json
+{
+  "status": "active",
+  "plan": null,
+  "subscriptionId": "preapp_xxx"
+}
+```
+
+### 5.4. Status da Assinatura
 
 ```http
 GET /api/payments/subscription
@@ -208,14 +244,14 @@ Authorization: Bearer <token>
   "planName": "IA Pro",
   "amount": 19700,
   "hasSubscription": true,
-  "subscriptionId": "sub_xxx",
+  "subscriptionId": "preapp_xxx",
   "subscriptionStatus": "active",
   "currentPeriodEnd": "2025-08-15T00:00:00.000Z",
   "daysRemaining": 28
 }
 ```
 
-### 5.4. Histórico de Pagamentos
+### 5.5. Histórico de Pagamentos
 
 ```http
 GET /api/payments/history?page=1&limit=10
@@ -232,7 +268,7 @@ Authorization: Bearer <token>
       "currency": "brl",
       "status": "succeeded",
       "plan": "PRO",
-      "description": "Fatura IA Pro - 1234",
+      "description": "Pagamento PRO",
       "periodStart": "2025-07-01T00:00:00.000Z",
       "periodEnd": "2025-08-01T00:00:00.000Z",
       "createdAt": "2025-07-01T10:30:00.000Z"
@@ -247,7 +283,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 5.5. Faturas
+### 5.6. Faturas
 
 ```http
 GET /api/payments/invoices
@@ -259,7 +295,7 @@ Authorization: Bearer <token>
 [
   {
     "id": "uuid",
-    "invoiceNumber": "Fatura IA Pro - 1234",
+    "invoiceNumber": "Fatura #abc12345",
     "amount": 19700,
     "currency": "brl",
     "status": "paid",
@@ -272,7 +308,7 @@ Authorization: Bearer <token>
 ]
 ```
 
-### 5.6. Portal do Cliente
+### 5.7. Gerenciar Assinatura (Portal)
 
 ```http
 POST /api/payments/portal
@@ -282,85 +318,65 @@ Authorization: Bearer <token>
 **Resposta:**
 ```json
 {
-  "url": "https://billing.stripe.com/p/session/xxx"
+  "url": "https://www.mercadopago.com.br/subscriptions"
 }
 ```
 
-> Redireciona o usuário para o Stripe Billing Portal onde pode:
-> - Atualizar cartão de crédito
-> - Alterar plano
-> - Cancelar assinatura
-> - Visualizar faturas
+> Redireciona o usuário para o Mercado Pago onde pode gerenciar a assinatura.
 
-### 5.7. Criar Produtos (Setup)
+### 5.8. Webhook (público)
 
 ```http
-POST /api/payments/setup-products
-Authorization: Bearer <token>
-```
-
-### 5.8. Configuração do Stripe
-
-```http
-GET /api/payments/config
-Authorization: Bearer <token>
-```
-
-```http
-GET /api/payments/status
-Authorization: Bearer <token>
-```
-
-### 5.9. Webhook (público)
-
-```http
-POST /api/webhook/stripe
+POST /api/webhook/mercadopago
 Content-Type: application/json
-Stripe-Signature: <assinatura>
 ```
 
-> Este endpoint é chamado pelo Stripe automaticamente. Não requer autenticação, mas valida a assinatura.
+> Este endpoint é chamado pelo Mercado Pago automaticamente. Não requer autenticação.
+
+**Tipos de notificação processados:**
+- `payment` — pagamento aprovado, rejeitado ou cancelado
+- `subscription_preapproval` — assinatura autorizada, cancelada ou pausada
 
 ---
 
 ## 6. Fluxo Completo
 
-### Fluxo: Usuário → Pagamento → Upgrade
+### Fluxo: Usuário → Assinatura → Upgrade
 
 ```
 1. LandingPage → Cliente clica "Escolher Starter/Pro"
 2. Página de Cadastro → Cria conta (ganha 7 dias de trial grátis)
 3. Dashboard → Navega para Configurações > Plano
 4. Clica "Fazer Upgrade" em um dos planos
-5. Redirecionado para Stripe Checkout (página segura do Stripe)
-6. Cliente paga com cartão ou boleto
-7. Stripe redireciona para /payment/success?session_id=cs_xxx
-8. Frontend verifica a sessão: GET /api/payments/session/:id
-9. Webhook Stripe → POST /api/webhook/stripe
-   - checkout.session.completed: Atualiza plano do usuário + grava pagamento
+5. Redirecionado para Mercado Pago (página segura de assinatura)
+6. Cliente aprova assinatura (PIX, cartão ou boleto)
+7. Mercado Pago redireciona para /payment/success?preapproval_id=preapp_xxx
+8. Frontend verifica: GET /api/payments/session/:preapprovalId
+9. Webhook Mercado Pago → POST /api/webhook/mercadopago
+   - subscription_preapproval: Atualiza plano do usuário
 10. Dashboard agora mostra o plano ativo com data de renovação
 11. Pagamentos futuros:
-    - Stripe cobra automaticamente a cada mês
-    - invoice.payment_succeeded: Grava pagamento no histórico
-    - invoice.payment_failed: Marca como past_due
+    - Mercado Pago cobra automaticamente a cada mês
+    - payment (approved): Grava pagamento no histórico
+    - subscription_preapproval (cancelled): Rebaixa para FREE
 ```
 
-### Fluxo de Upgrade de Plano (ex: de Starter para Pro)
+### Fluxo de Upgrade de Plano
 
 ```
 1. Usuário acessa Configurações > Plano
-2. Clica "Fazer Upgrade" no plano Pro
-3. Stripe Checkout é criado
-4. No webhook, Stripe gerencia o upgrade automaticamente
-5. subscription.updated: Plano atualizado no banco
+2. Clica "Fazer Upgrade" no plano desejado
+3. Mercado Pago cria nova assinatura e redireciona
+4. Webhook processa subscription_preapproval (authorized)
+5. Plano atualizado no banco
 ```
 
 ### Fluxo de Cancelamento
 
 ```
-1. Usuário clica "Gerenciar Assinatura" → Stripe Portal
-2. Cancela a assinatura no Stripe
-3. Webhook: customer.subscription.deleted
+1. Usuário clica "Gerenciar Assinatura" → Mercado Pago
+2. Cancela a assinatura no Mercado Pago
+3. Webhook: subscription_preapproval (cancelled)
 4. Plano do usuário é rebaixado para FREE
 ```
 
@@ -368,12 +384,13 @@ Stripe-Signature: <assinatura>
 
 ## 7. Segurança
 
-### Webhook Signature Verification
+### Webhook Processing
 
 ```typescript
 // backend/src/services/payment.ts
-const sig = req.headers['stripe-signature'] as string;
-const event = stripe.webhooks.constructEvent(rawBody, sig, STRIPE_WEBHOOK_SECRET);
+// O Mercado Pago envia notificações via POST sem assinatura obrigatória
+// O webhook é público e processa eventos de pagamento e assinatura
+await handleWebhookNotification(req.body);
 ```
 
 ### Autenticação em endpoints protegidos
@@ -383,13 +400,6 @@ const event = stripe.webhooks.constructEvent(rawBody, sig, STRIPE_WEBHOOK_SECRET
 router.use(authenticate); // JWT middleware
 ```
 
-### SSRF Protection (Webhooks genéricos)
-
-```typescript
-// backend/src/routes/webhooks.ts
-await validateWebhookUrl(url); // Bloqueia URLs internas
-```
-
 ---
 
 ## 8. Monitoramento
@@ -397,19 +407,9 @@ await validateWebhookUrl(url); // Bloqueia URLs internas
 ### Logs Estruturados
 
 ```typescript
-// Todos os eventos do Stripe são logados:
-console.log(`[Stripe] Processing event: ${event.type}`);
-console.log(`[Stripe] Subscription created for user ${userId}, plan ${planName}`);
-console.log(`[Payment] Recorded: succeeded - PRO - R$ 197,00`);
-```
-
-### Trial Expiration (CRON)
-
-```typescript
-// A cada 15 minutos, verifica trials expirados
-setInterval(async () => {
-  const count = await checkAndDisconnectExpiredTrials();
-}, 15 * 60 * 1000);
+console.log(`[Mercado Pago] Processing notification: ${type}/${action}`);
+console.log(`[Mercado Pago] Payment approved for org ${organizationId}`);
+console.log(`[Payment] Recorded: ${status} - ${plan} - R$ ${(amount/100).toFixed(2)}`);
 ```
 
 ---
@@ -420,15 +420,9 @@ setInterval(async () => {
 
 ```bash
 # Configurar variáveis
-railway variables set STRIPE_SECRET_KEY=sk_live_...
-railway variables set STRIPE_PUBLISHABLE_KEY=pk_live_...
-railway variables set STRIPE_WEBHOOK_SECRET=whsec_...
-railway variables set STRIPE_PRICE_STARTER=price_...
-railway variables set STRIPE_PRICE_PRO=price_...
-railway variables set STRIPE_PRICE_ENTERPRISE=price_...
-
-# Fazer deploy
-railway up
+railway variables set MP_ACCESS_TOKEN=APP_USR-...
+railway variables set MP_PUBLIC_KEY=APP_USR-...
+railway variables set MP_WEBHOOK_SECRET=...
 ```
 
 ### Docker
@@ -438,9 +432,9 @@ railway up
 services:
   backend:
     environment:
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
-      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - MP_ACCESS_TOKEN=${MP_ACCESS_TOKEN}
+      - MP_PUBLIC_KEY=${MP_PUBLIC_KEY}
+      - MP_WEBHOOK_SECRET=${MP_WEBHOOK_SECRET}
 ```
 
 ---
@@ -451,8 +445,6 @@ services:
 backend/
 ├── prisma/
 │   └── schema.prisma              # Modelo Payment + Organization fields
-├── scripts/
-│   └── setup-stripe.js            # Script manual de setup
 ├── src/
 │   ├── config/
 │   │   └── database.ts            # PrismaClient singleton
@@ -462,7 +454,7 @@ backend/
 │   ├── routes/
 │   │   └── payments.ts            # Endpoints de pagamento + webhook
 │   ├── services/
-│   │   ├── payment.ts             # Lógica Stripe + recordPayment()
+│   │   ├── payment.ts             # Lógica Mercado Pago + recordPayment()
 │   │   └── trial.ts               # Gerenciamento de trial grátis
 │   └── types/
 │       └── index.ts               # Tipos PlanName, PLAN_LIMITS
@@ -473,8 +465,8 @@ frontend/
 │   ├── components/
 │   │   └── PlanComparison.tsx      # Tabela de comparação de planos
 │   ├── pages/
-│   │   ├── SettingsPage.tsx        # Upgrade + assinatura + histórico
-│   │   ├── PaymentSuccessPage.tsx  # Pós-pagamento confirmado
+│   │   ├── SettingsPage.tsx        # Upgrade + assinatura + histórico + setup MP
+│   │   ├── PaymentSuccessPage.tsx  # Pós-pagamento confirmado (PIX/cartão/boleto)
 │   │   ├── PaymentCancelPage.tsx   # Pagamento cancelado
 │   │   └── LandingPage.tsx         # Pricing com CTAs para planos
 │   └── types/
@@ -485,4 +477,4 @@ frontend/
 
 ## Última atualização
 
-Julho 2026 — ZapFlow v1.0
+Julho 2026 — ZapFlow v1.0 — Migrado de Stripe para Mercado Pago

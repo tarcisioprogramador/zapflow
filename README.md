@@ -66,7 +66,7 @@
 | Redis | 7 | Filas (BullMQ) |
 | Socket.io | 4.8+ | WebSocket em tempo real |
 | JWT | — | Autenticação |
-| Stripe | 22+ | Pagamentos |
+| Mercado Pago | 3.2+ | Pagamentos (PIX, cartão, boleto) |
 | OpenAI / Groq / Gemini | — | IA |
 
 ### Frontend
@@ -266,12 +266,10 @@ GROQ_API_KEY=""
 GEMINI_API_KEY=""
 OPENAI_API_KEY=""
 
-# ─── Stripe (Pagamentos) ──────────────────
-STRIPE_SECRET_KEY="sk_test_..."
-STRIPE_PUBLISHABLE_KEY="pk_test_..."
-STRIPE_WEBHOOK_SECRET="whsec_..."
-STRIPE_PRICE_STARTER="price_starter_id"
-STRIPE_PRICE_PRO="price_pro_id"
+# ─── Mercado Pago (Pagamentos) ──────────────
+MP_ACCESS_TOKEN="APP_USR-..."
+MP_PUBLIC_KEY="APP_USR-..."
+MP_WEBHOOK_SECRET="..."
 ```
 
 ### Frontend (`frontend/.env`)
@@ -431,7 +429,7 @@ npm run test:coverage       # Com cobertura
 |---|---|---|
 | `GET` | `/api/health` | Health check |
 | `GET` | `/api/remarketing` | Sequências de remarketing |
-| `POST` | `/api/payments/create-checkout` | Criar checkout Stripe |
+| `POST` | `/api/payments/create-checkout` | Criar assinatura Mercado Pago |
 | `POST` | `/api/payments/portal` | Portal de assinatura |
 | `GET` | `/api/payments/session/:id` | Status da sessão |
 

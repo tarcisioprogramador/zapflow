@@ -3,6 +3,7 @@ import { useAuthStore } from '../store';
 import { webhooksApi, usersApi, paymentsApi, authApi } from '../api';
 import { Webhook, TrialStatus, PaymentRecord, SubscriptionInfo } from '../types';
 import PlanComparison from '../components/PlanComparison';
+import MpSetupGuide from '../components/MpSetupGuide';
 import {
   User, Users, Webhook as WebhookIcon, Key, CreditCard, Bell, Shield, Globe, Plus, Trash2, Send,
   ExternalLink, Copy, Check, Zap, Loader2, AlertCircle, CheckCircle2, Receipt, Calendar, ArrowRight, Clock,
@@ -18,6 +19,46 @@ const tabs = [
   { id: 'plan', label: 'Plano', icon: CreditCard },
 ];
 
+function OneTimePixButton({ planId, planName, price }: { planId: string; planName: string; price: string }) {
+  const [loading, setLoading] = useState(false);
+
+  const handlePay = async () => {
+    setLoading(true);
+    try {
+      const { data } = await paymentsApi.createOneTimePix({ plan: planId });
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.error || 'Erro ao criar pagamento PIX';
+      if (msg.includes('Mercado Pago não configurado')) {
+        alert('Mercado Pago ainda não configurado. Complete a configuração na seção acima.');
+      } else {
+        alert(msg);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handlePay}
+      disabled={loading}
+      className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-5 py-2.5 rounded-lg transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.98] disabled:opacity-70"
+    >
+      {loading ? (
+        <Loader2 className="w-4 h-4 animate-spin" />
+      ) : (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 0C5.383 0 0 5.383 0 12s5.383 12 12 12 12-5.383 12-12S18.617 0 12 0zm-1.004 16.125l-3.234-3.234 1.145-1.145 2.089 2.089 4.357-4.357 1.145 1.145-5.502 5.502z"/>
+        </svg>
+      )}
+      {planName} — {price}
+    </button>
+  );
+}
+
 function PlanCard({ plan }: { plan: { id: string; name: string; price: string; period: string; features: string[]; current: boolean; popular: boolean } }) {
   const [loading, setLoading] = useState(false);
 
@@ -30,8 +71,8 @@ function PlanCard({ plan }: { plan: { id: string; name: string; price: string; p
       }
     } catch (err: any) {
       const msg = err.response?.data?.error || 'Erro ao iniciar checkout';
-      if (msg.includes('Stripe não configurado')) {
-        alert('Pagamento via Stripe ainda não configurado. Entre em contato com o suporte para assinar.');
+      if (msg.includes('Mercado Pago não configurado')) {
+        alert('Pagamento via Mercado Pago ainda não configurado. Complete a configuração na aba Plano > Configuração de Pagamentos.');
       } else {
         alert(msg);
       }
@@ -93,11 +134,6 @@ export default function SettingsPage() {
   const [newWebhook, setNewWebhook] = useState({ name: '', url: '', events: ['message.received'] });
   const [showWebhookModal, setShowWebhookModal] = useState(false);
 
-  // Stripe setup state
-  const [stripeStatus, setStripeStatus] = useState<any>(null);
-  const [checkingStripe, setCheckingStripe] = useState(false);
-  const [settingUpStripe, setSettingUpStripe] = useState(false);
-
   // Subscription & payment history
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loadingSubscription, setLoadingSubscription] = useState(false);
@@ -112,19 +148,6 @@ export default function SettingsPage() {
       const { data } = await authApi.trial();
       setTrial(data);
     } catch { /* ignore */ }
-  }, []);
-
-  // Check Stripe configuration status
-  const checkStripeStatus = useCallback(async () => {
-    setCheckingStripe(true);
-    try {
-      const { data } = await paymentsApi.getStatus();
-      setStripeStatus(data);
-    } catch {
-      setStripeStatus({ configured: false, nextStep: 'Erro ao verificar status do Stripe' });
-    } finally {
-      setCheckingStripe(false);
-    }
   }, []);
 
   // Load subscription info
@@ -170,38 +193,14 @@ export default function SettingsPage() {
     }
   };
 
-  // Auto-check Stripe status and load subscription/payments when Plan tab opens
+  // Load data when Plan tab opens
   useEffect(() => {
     if (activeTab === 'plan') {
-      checkStripeStatus();
       loadTrial();
       loadSubscription();
       loadPayments();
     }
-  }, [activeTab, checkStripeStatus, loadTrial, loadSubscription, loadPayments]);
-
-  // Auto-create Stripe products
-  const handleSetupStripe = async () => {
-    setSettingUpStripe(true);
-    try {
-      const { data } = await paymentsApi.setupProducts();
-      if (data.success) {
-        toast.success('✅ Produtos Stripe criados! Copie os Price IDs para o .env');
-        setStripeStatus((prev: any) => ({
-          ...prev,
-          configured: true,
-          products: data.products,
-          envVars: data.envVars,
-        }));
-      } else {
-        toast.error(data.error || 'Erro ao criar produtos');
-      }
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Erro ao configurar Stripe');
-    } finally {
-      setSettingUpStripe(false);
-    }
-  };
+  }, [activeTab, loadTrial, loadSubscription, loadPayments]);
 
   useEffect(() => {
     if (activeTab === 'webhooks') loadWebhooks();
@@ -516,7 +515,7 @@ export default function SettingsPage() {
                         Gerenciar Assinatura
                       </button>
                       <p className="text-xs text-dark-500">
-                        No Stripe Portal você pode atualizar cartão, alterar plano ou cancelar.
+                        No Mercado Pago você pode gerenciar sua assinatura, atualizar forma de pagamento ou cancelar.
                       </p>
                     </div>
                   </div>
@@ -531,179 +530,16 @@ export default function SettingsPage() {
                 )}
               </div>
 
-              {/* ─── Stripe Setup Guide ───────────────── */}
-              <div className="glass-card p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-lg font-heading font-bold text-white flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-zap-400" />
-                    Configuração de Pagamentos
-                  </h4>
-                  <button
-                    onClick={checkStripeStatus}
-                    disabled={checkingStripe}
-                    className="btn-ghost text-xs flex items-center gap-1"
-                  >
-                    {checkingStripe ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <AlertCircle className="w-3.5 h-3.5" />
-                    )}
-                    Verificar Status
-                  </button>
-                </div>
-
-                {stripeStatus === null && !checkingStripe && (
-                  <div className="p-4 rounded-xl bg-dark-800/50 border border-dark-700/30 text-center">
-                    <p className="text-dark-400 text-sm">Clique em "Verificar Status" para checar a configuração do Stripe</p>
-                  </div>
-                )}
-
-                {checkingStripe && (
-                  <div className="p-4 rounded-xl bg-dark-800/50 border border-dark-700/30 flex items-center justify-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-zap-400" />
-                    <span className="text-dark-400 text-sm">Verificando...</span>
-                  </div>
-                )}
-
-                {stripeStatus && stripeStatus.configured && (
-                  <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                      <span className="text-emerald-400 font-semibold">Stripe configurado!</span>
-                    </div>
-                    <p className="text-sm text-dark-300">
-                      Checkout ativo. Clientes podem pagar com cartão de crédito ou boleto.
-                    </p>
-                  </div>
-                )}
-
-                {stripeStatus && !stripeStatus.configured && (
-                  <div className="space-y-4">
-                    <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
-                      <div className="flex items-center gap-2 mb-2">
-                        <AlertCircle className="w-5 h-5 text-amber-400" />
-                        <span className="text-amber-400 font-semibold">Stripe não configurado</span>
-                      </div>
-                      <p className="text-sm text-dark-300 mb-4">
-                        Complete os passos abaixo para ativar vendas automáticas com PIX, cartão e boleto:
-                      </p>
-
-                      {/* CTA principal */}
-                      <a
-                        href="https://dashboard.stripe.com/register"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 bg-zap-500 hover:bg-zap-600 text-white font-bold px-6 py-3 rounded-lg transition-all shadow-lg shadow-zap-500/20 mb-6"
-                      >
-                        <ExternalLinkIcon className="w-4 h-4" />
-                        Criar Conta no Stripe
-                      </a>
-
-                      {stripeStatus.envVars && (
-                        <div className="p-3 rounded-lg bg-dark-900/50 border border-dark-700/30 mb-4">
-                          <p className="text-xs text-emerald-400 font-semibold mb-2">✅ Produtos criados! Copie para o .env:</p>
-                          {stripeStatus.envVars.map((v: string) => (
-                            <code key={v} className="block text-xs font-mono text-zap-400 bg-dark-950/50 p-1.5 rounded mb-1">{v}</code>
-                          ))}
-                        </div>
-                      )}
-
-                      <ol className="space-y-4 text-sm">
-                        <li className="flex items-start gap-3">
-                          <span className="w-6 h-6 rounded-full bg-zap-500/20 text-zap-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">1</span>
-                          <div>
-                            <p className="text-white font-medium">Criar conta no Stripe</p>
-                            <p className="text-dark-400 text-xs mt-0.5">
-                              Clique no botão acima para criar sua conta gratuita. Leva 2 minutos.
-                            </p>
-                          </div>
-                        </li>
-                        <li className="flex items-start gap-3">
-                          <span className="w-6 h-6 rounded-full bg-zap-500/20 text-zap-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">2</span>
-                          <div>
-                            <p className="text-white font-medium">Copiar as chaves de API</p>
-                            <p className="text-dark-400 text-xs mt-0.5">
-                              No Stripe, vá em <strong className="text-dark-200">Developers {'>'} API keys</strong> e copie:
-                            </p>
-                            <div className="mt-2 space-y-1">
-                              <code className="block text-xs font-mono text-zap-400 bg-dark-950/50 p-1.5 rounded">STRIPE_SECRET_KEY=sk_test_...</code>
-                              <code className="block text-xs font-mono text-zap-400 bg-dark-950/50 p-1.5 rounded">STRIPE_PUBLISHABLE_KEY=pk_test_...</code>
-                            </div>
-                          </div>
-                        </li>
-                        <li className="flex items-start gap-3">
-                          <span className="w-6 h-6 rounded-full bg-zap-500/20 text-zap-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">3</span>
-                          <div>
-                            <p className="text-white font-medium">Configurar no Railway</p>
-                            <p className="text-dark-400 text-xs mt-0.5">
-                              Adicione as chaves como variáveis de ambiente no Railway:
-                            </p>
-                            <code className="block text-xs font-mono text-zap-400 bg-dark-950/50 p-1.5 rounded mt-2">railway variables set STRIPE_SECRET_KEY=sk_test_... STRIPE_PUBLISHABLE_KEY=pk_test_...</code>
-                          </div>
-                        </li>
-                        <li className="flex items-start gap-3">
-                          <span className="w-6 h-6 rounded-full bg-zap-500/20 text-zap-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">4</span>
-                          <div>
-                            <p className="text-white font-medium">Criar os produtos automaticamente</p>
-                            <p className="text-dark-400 text-xs mt-0.5">Após adicionar as chaves, clique aqui:</p>
-                            <div className="mt-3">
-                              <button
-                                onClick={handleSetupStripe}
-                                disabled={settingUpStripe || !stripeStatus.keys?.secretKey}
-                                className="btn-primary text-sm flex items-center gap-2"
-                              >
-                                {settingUpStripe ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <Zap className="w-4 h-4" />
-                                )}
-                                {settingUpStripe ? 'Criando...' : 'Criar Produtos Automaticamente'}
-                              </button>
-                              {!stripeStatus.keys?.secretKey && (
-                                <p className="text-xs text-amber-400 mt-1">Adicione STRIPE_SECRET_KEY primeiro</p>
-                              )}
-                            </div>
-                          </div>
-                        </li>
-                        <li className="flex items-start gap-3">
-                          <span className="w-6 h-6 rounded-full bg-zap-500/20 text-zap-400 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">5</span>
-                          <div>
-                            <p className="text-white font-medium">Configurar Webhook</p>
-                            <p className="text-dark-400 text-xs mt-0.5">
-                              Vá em <strong className="text-dark-200">Developers {'>'} Webhooks {'>'} Add endpoint</strong>
-                            </p>
-                            <p className="text-dark-400 text-xs mt-1">
-                              URL: <code className="text-zap-400 bg-dark-900/50 px-1 rounded">{window.location.origin}/api/webhook/stripe</code>
-                            </p>
-                            <p className="text-dark-400 text-xs mt-1">
-                              Eventos: <code className="text-dark-300 bg-dark-900/50 px-1 rounded">checkout.session.completed</code>,{' '}
-                              <code className="text-dark-300 bg-dark-900/50 px-1 rounded">invoice.payment_succeeded</code>,{' '}
-                              <code className="text-dark-300 bg-dark-900/50 px-1 rounded">customer.subscription.deleted</code>
-                            </p>
-                          </div>
-                        </li>
-                      </ol>
-
-                      <div className="mt-6 p-4 rounded-lg bg-zap-500/5 border border-zap-500/20">
-                        <p className="text-sm text-zap-400 font-medium mb-1">💡 PIX, Cartão e Boleto já configurados no código!</p>
-                        <p className="text-xs text-dark-300">
-                          O Stripe já está configurado para aceitar <strong className="text-white">PIX</strong> (pagamento instantâneo), 
-                          cartão de crédito e boleto bancário. Ao ativar sua conta Stripe, lembre-se de:
-                        </p>
-                        <p className="text-xs text-dark-400 mt-2">
-                          • Ir em <strong className="text-dark-200">Stripe Dashboard → Settings → Payment methods</strong><br />
-                          • Ativar <strong className="text-white">PIX</strong> (buscar por "PIX" e clicar em "Activate")<br />
-                          • Ativar <strong className="text-white">Boleto</strong> se desejar<br />
-                          • Pronto! Seus clientes poderão pagar via PIX, cartão ou boleto.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+              {/* ─── Mercado Pago Setup Guide (only for ADMIN/OWNER) ── */}
+              {user?.role && ['OWNER', 'ADMIN'].includes(user.role) && (
+                <MpSetupGuide onConfigChange={() => { loadSubscription(); }} compact />
+              )}
 
               {/* ─── Upgrade Cards ───────────────────── */}
-              <h4 className="text-lg font-heading font-bold text-white">Fazer Upgrade</h4>
+              <h4 className="text-lg font-heading font-bold text-white">Assinatura Mensal</h4>
+              <p className="text-sm text-dark-400 mb-4">
+                Escolha um plano e assine com cobrança recorrente automática todo mês.
+              </p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl">
                 {[
                   { id: 'STARTER', name: 'IA Starter', price: '97', period: '/mês', features: ['1 Número conectado', '5 atendentes', 'CRM Kanban (2 quadros)', '15.000 Webhooks', '5M Tokens de IA'], current: user?.plan === 'STARTER' || user?.plan === 'FREE', popular: false },
@@ -715,6 +551,55 @@ export default function SettingsPage() {
                     plan={plan}
                   />
                 ))}
+              </div>
+
+              {/* ─── One-Time PIX Button ──────────────── */}
+              <div className="glass-card p-6 border-2 border-emerald-500/30 bg-emerald-500/5">
+                <div className="flex items-start gap-4">
+                  <div className="w-14 h-14 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-7 h-7 text-emerald-400" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 0C5.383 0 0 5.383 0 12s5.383 12 12 12 12-5.383 12-12S18.617 0 12 0zm-1.004 16.125l-3.234-3.234 1.145-1.145 2.089 2.089 4.357-4.357 1.145 1.145-5.502 5.502z"/>
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-lg font-heading font-bold text-white flex items-center gap-2">
+                      Pagamento Avulso via PIX
+                      <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">INSTANTÂNEO</span>
+                    </h4>
+                    <p className="text-sm text-dark-300 mt-1">
+                      Pague <strong>uma única vez</strong> com PIX, cartão ou boleto. Sem assinatura, sem compromisso mensal.
+                      Ideal para testar um plano por um mês ou se você prefere não vincular um cartão.
+                    </p>
+                    <div className="flex flex-wrap gap-3 mt-4">
+                      {[
+                        { id: 'STARTER', name: 'Starter', price: 'R$ 97' },
+                        { id: 'PRO', name: 'Pro', price: 'R$ 197' },
+                        { id: 'ENTERPRISE', name: 'Enterprise', price: 'R$ 497' },
+                      ].map((planOption) => (
+                        <OneTimePixButton
+                          key={planOption.id}
+                          planId={planOption.id}
+                          planName={planOption.name}
+                          price={planOption.price}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-4 mt-4 text-xs text-dark-500">
+                      <span className="flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        PIX aprova em segundos
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        Cartão de crédito
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        Boleto bancário
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* ─── Payment History ──────────────────── */}

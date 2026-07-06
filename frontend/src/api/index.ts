@@ -99,7 +99,7 @@ api.interceptors.response.use(
 // ─── Auth ─────────────────────────────────────────────────
 export const authApi = {
   login: (data: { email: string; password: string }) => api.post('/auth/login', data),
-  register: (data: { name: string; email: string; password: string; organizationName?: string }) =>
+  register: (data: { name: string; email: string; password: string; organizationName?: string; paymentId?: string }) =>
     api.post('/auth/register', data),
   me: () => api.get('/auth/me'),
   refresh: () => api.post('/auth/refresh'),
@@ -216,12 +216,12 @@ export const usersApi = {
   create: (data: any) => api.post('/users', data),
   updateRole: (id: string, role: string) => api.put(`/users/${id}`, { role }),
   delete: (id: string) => api.delete(`/users/${id}`),
-};
-
-// Payments
+};  // Payments
 export const paymentsApi = {
   getConfig: () => api.get('/payments/config'),
   createCheckout: (data: { plan: string }) => api.post('/payments/create-checkout', data),
+  createOneTimePix: (data: { plan: string }) => api.post('/payments/create-one-time-pix', data),
+  publicCheckout: (data: { plan: string }) => api.post('/payments/public-checkout', data),
   getSession: (id: string) => api.get(`/payments/session/${id}`),
   getSubscription: () => api.get('/payments/subscription'),
   createPortal: () => api.post('/payments/portal'),
@@ -230,6 +230,14 @@ export const paymentsApi = {
   getHistory: (params?: { page?: number; limit?: number }) =>
     api.get('/payments/history', { params }),
   getInvoices: () => api.get('/payments/invoices'),
+};
+
+
+// Tour Status (synced across devices)
+export const tourApi = {
+  getStatus: () => api.get('/auth/tour-status'),
+  update: (data: { dashboard?: boolean; onboarding?: boolean }) =>
+    api.put('/auth/tour-status', data),
 };
 
 export default api;

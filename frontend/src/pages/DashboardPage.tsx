@@ -1,12 +1,15 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { dashboardApi, authApi } from '../api';
+import { dashboardApi, authApi, paymentsApi } from '../api';
 import { DashboardMetrics, TrialStatus } from '../types';
 import {
   MessageSquare, Users, GitBranch, Send, TrendingUp, ArrowUpRight,
   ArrowDownRight, Zap, BarChart3, Activity, Clock, AlertTriangle,
   RefreshCw, Crown,
 } from 'lucide-react';
+import { useAuthStore } from '../store';
+import MpSetupGuide from '../components/MpSetupGuide';
+import DashboardTour from '../components/DashboardTour';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area,
@@ -100,19 +103,29 @@ function TrialExpiredOverlay({ trial }: { trial: TrialStatus }) {
 // ─── Dashboard Page ──────────────────────────────
 // ═══════════════════════════════════════════════════
 export default function DashboardPage() {
+  const user = useAuthStore((s) => s.user);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [trial, setTrial] = useState<TrialStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [mpConfigured, setMpConfigured] = useState<boolean | null>(null);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [metricsRes, trialRes] = await Promise.allSettled([
+      const [metricsRes, trialRes, mpRes] = await Promise.allSettled([
         dashboardApi.metrics(),
         authApi.trial(),
+        paymentsApi.getStatus(),
       ]);
+
+      if (mpRes.status === 'fulfilled') {
+        setMpConfigured(mpRes.value.data?.configured ?? false);
+      } else {
+        setMpConfigured(null);
+      }
 
       if (metricsRes.status === 'fulfilled') {
         setMetrics(metricsRes.value.data);
@@ -173,14 +186,24 @@ export default function DashboardPage() {
     : [];
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in" data-tour="dashboard">
+      {/* Tour overlay for new users (only when trial is active) */}
+      {mpConfigured !== false && !trial?.isExpired && <DashboardTour />}
+
       {/* Trial Expired Banner (full page) */}
       {trial?.isExpired && (
         <TrialExpiredOverlay trial={trial} />
       )}
 
+      {/* Mercado Pago Setup Guide (shown until configured — only for ADMIN/OWNER) */}
+      {mpConfigured === false && user?.role && ['OWNER', 'ADMIN'].includes(user.role) && (
+        <div className="max-w-3xl mx-auto">
+          <MpSetupGuide onConfigChange={() => setMpConfigured(true)} />
+        </div>
+      )}
+
       {/* Stats Grid — always visible even if trial expired */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" data-tour="stats">
         {stats.map((stat) => (
           <StatCard key={stat.label} stat={stat} />
         ))}
@@ -189,7 +212,7 @@ export default function DashboardPage() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Messages Chart */}
-        <div className="glass-card p-6">
+        <div className="glass-card p-6" data-tour="chart-messages">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-lg font-heading font-bold text-white">Mensagens</h3>
@@ -221,7 +244,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Pipeline Chart */}
-        <div className="glass-card p-6">
+        <div className="glass-card p-6" data-tour="chart-pipeline">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-lg font-heading font-bold text-white">Pipeline de Vendas</h3>
@@ -253,7 +276,7 @@ export default function DashboardPage() {
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Quick Stats */}
-        <div className="glass-card p-6">
+        <div className="glass-card p-6" data-tour="summary">
           <h3 className="text-lg font-heading font-bold text-white mb-4">Resumo</h3>
           <div className="space-y-4">
             {[
@@ -273,7 +296,7 @@ export default function DashboardPage() {
         </div>
 
         {/* AI Performance */}
-        <div className="glass-card p-6">
+        <div className="glass-card p-6" data-tour="ai-performance">
           <h3 className="text-lg font-heading font-bold text-white mb-4">Performance IA</h3>
           <div className="space-y-4">
             <div className="text-center p-4 rounded-xl bg-gradient-to-r from-brand-500/10 to-zap-500/10 border border-brand-500/20">
@@ -295,7 +318,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Recent Activity */}
-        <div className="glass-card p-6">
+        <div className="glass-card p-6" data-tour="activity">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-heading font-bold text-white">Atividade Recente</h3>
             <Clock className="w-4 h-4 text-dark-500" />

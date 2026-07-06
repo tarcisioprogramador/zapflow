@@ -131,6 +131,8 @@ exports.Prisma.UserScalarFieldEnum = {
   plan: 'plan',
   avatar: 'avatar',
   phone: 'phone',
+  tourDashboardCompleted: 'tourDashboardCompleted',
+  tourOnboardingCompleted: 'tourOnboardingCompleted',
   trialStartedAt: 'trialStartedAt',
   trialExpiresAt: 'trialExpiresAt',
   createdAt: 'createdAt',

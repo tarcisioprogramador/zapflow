@@ -21,8 +21,8 @@ services:
     repo: https://github.com/tarcisioprogramador/zapflow
     branch: master
     rootDir: backend
-    buildCommand: npm install && npm run build && npx prisma generate
-    startCommand: node dist/index.js
+    buildCommand: npm install && npx prisma generate
+    startCommand: npx prisma db push --accept-data-loss > /dev/null 2>&1; npx tsx prisma/seed.ts > /dev/null 2>&1; npx tsx src/index.ts
     healthCheckPath: /api/health
     plan: free
     envVars:

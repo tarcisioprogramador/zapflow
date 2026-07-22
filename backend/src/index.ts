@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { createServer } from 'http';
+import { exec } from 'child_process';
 import { setupWebSocket } from './config/websocket';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
@@ -160,9 +161,7 @@ setInterval(async () => {
 })();
 
 // ─── Database setup (async, non-blocking) ───────────────────
-import { exec } from 'child_process';
-
-function runMigrationsAndSeed() {
+function runMigrationsAndSeed(maxRetries = 3) {
   // Run prisma db push in background (non-blocking)
   exec('npx prisma db push --accept-data-loss 2>&1', (err, stdout) => {
     if (err) {

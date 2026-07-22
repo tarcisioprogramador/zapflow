@@ -159,10 +159,37 @@ setInterval(async () => {
   }
 })();
 
+// ─── Database setup (async, non-blocking) ───────────────────
+import { exec } from 'child_process';
+
+function runMigrationsAndSeed() {
+  // Run prisma db push in background (non-blocking)
+  exec('npx prisma db push --accept-data-loss 2>&1', (err, stdout) => {
+    if (err) {
+      console.log('[DB] ⏳ Database not ready yet. Will retry in 30s...');
+      setTimeout(runMigrationsAndSeed, 30000);
+      return;
+    }
+    console.log('[DB] ✅ Migrations applied');
+
+    // Run seed after successful migration
+    exec('npx tsx prisma/seed.ts 2>&1', (err2) => {
+      if (err2) {
+        console.log('[DB] ⚠️ Seed may have already run, continuing...');
+      } else {
+        console.log('[DB] ✅ Seed data created');
+      }
+    });
+  });
+}
+
 // Health check
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', name: process.env.APP_NAME || 'ZapFlow', version: '1.0.0' });
 });
+
+// Run database setup on startup (non-blocking — server starts first)
+runMigrationsAndSeed();
 
 // Public webhook routes (no auth required)
 app.use('/api/webhook', webhookRouter);

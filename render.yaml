@@ -2,17 +2,14 @@
 # ZapFlow Backend — Render Blueprint
 # ═══════════════════════════════════════════════
 # Deploy com 1 clique:
-#   1. Acesse https://dashboard.render.com/blueprints
-#   2. Conecte o repositório tarcisioprogramador/zapflow
-#   3. Clique "Apply"
+#   1. Acesse https://dashboard.render.com
+#   2. Clique "New +" -> "Blueprint"
+#   3. Conecte o repositório tarcisioprogramador/zapflow
+#   4. Clique "Apply"
 # ═══════════════════════════════════════════════
 
-databases:
-  - name: zapflow-db
-    databaseName: zapflow
-    user: zapflow_user
-    plan: free
-    ipAllowList: [] # Allow all connections (required for web service)
+# NOTA: O banco PostgreSQL está no Railway (já configurado)
+# A string DATABASE_URL é passada diretamente nas env vars
 
 services:
   - type: web
@@ -35,16 +32,14 @@ services:
       - key: JWT_SECRET
         value: zapflow-jwt-secret-prod-2026
       - key: FRONTEND_URL
-        value: https://frontend-poz0zs6m0-tarcisioconsultorsaude-9759s-projects.vercel.app
+        value: https://frontend-nu-sooty-330qu20cvq.vercel.app
       - key: BACKEND_URL
-        # Substitua pelo seu domínio Render após o deploy
         value: "https://zapflow-backend.onrender.com"
       - key: RATE_LIMIT_MAX
         value: "200"
       - key: DATABASE_URL
-        fromDatabase:
-          name: zapflow-db
-          property: connectionString
+        # PostgreSQL do Railway (já configurado)
+        sync: false
       - key: MP_ACCESS_TOKEN
         value: ""
       - key: MP_PUBLIC_KEY

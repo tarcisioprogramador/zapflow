@@ -1,30 +1,22 @@
 {
   "version": 2,
-  "name": "zapflow-frontend",
-  "buildCommand": "cd frontend && npm run build",
+  "buildCommand": "npm run vercel-build",
   "outputDirectory": "frontend/dist",
   "framework": "vite",
+  "functions": {
+    "api/index.ts": {
+      "memory": 512,
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://zapflow-backend.onrender.com/api/$1"
-    },
-    {
-      "source": "/socket.io/(.*)",
-      "destination": "https://zapflow-backend.onrender.com/socket.io/$1"
+      "destination": "/api"
     },
     {
       "source": "/(.*)",
       "destination": "/index.html"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/socket.io/(.*)",
-      "headers": [
-        { "key": "Upgrade", "value": "websocket" },
-        { "key": "Connection", "value": "Upgrade" }
-      ]
     }
   ]
 }

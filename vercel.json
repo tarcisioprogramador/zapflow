@@ -7,11 +7,11 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://<BACKEND_URL>/api/$1"
+      "destination": "https://zapflow-backend.onrender.com/api/$1"
     },
     {
       "source": "/socket.io/(.*)",
-      "destination": "https://<BACKEND_URL>/socket.io/$1"
+      "destination": "https://zapflow-backend.onrender.com/socket.io/$1"
     },
     {
       "source": "/(.*)",

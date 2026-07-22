@@ -1,0 +1,50 @@
+# ═══════════════════════════════════════════════
+# ZapFlow Backend — Render Blueprint
+# ═══════════════════════════════════════════════
+# Deploy com 1 clique:
+#   1. Acesse https://dashboard.render.com/blueprints
+#   2. Conecte o repositório tarcisioprogramador/zapflow
+#   3. Clique "Apply"
+# ═══════════════════════════════════════════════
+
+databases:
+  - name: zapflow-db
+    databaseName: zapflow
+    user: zapflow_user
+    plan: free
+    ipAllowList: [] # Allow all connections (required for web service)
+
+services:
+  - type: web
+    name: zapflow-backend
+    runtime: node
+    repo: https://github.com/tarcisioprogramador/zapflow
+    branch: master
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate
+    startCommand: npx tsx src/index.ts
+    healthCheckPath: /api/health
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3001"
+      - key: APP_NAME
+        value: ZapFlow
+      - key: JWT_SECRET
+        value: zapflow-jwt-secret-prod-2026
+      - key: FRONTEND_URL
+        value: https://frontend-poz0zs6m0-tarcisioconsultorsaude-9759s-projects.vercel.app
+      - key: BACKEND_URL
+        sync: false
+      - key: RATE_LIMIT_MAX
+        value: "200"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: zapflow-db
+          property: connectionString
+      - key: MP_ACCESS_TOKEN
+        value: ""
+      - key: MP_PUBLIC_KEY
+        value: ""

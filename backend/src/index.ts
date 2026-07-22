@@ -188,11 +188,14 @@ app.get('*', (_req, res) => {
   res.sendFile(path.join(publicPath, 'index.html'));
 });
 
-// Start server
-httpServer.listen(PORT, () => {
-  console.log(`\n🚀 ZapFlow Backend running on http://localhost:${PORT}`);
-  console.log(`📡 WebSocket ready`);
-  console.log(`🌐 Serving frontend from ${publicPath}\n`);
-});
+// Only start the server when NOT running on Vercel (serverless)
+if (!process.env.VERCEL) {
+  httpServer.listen(PORT, () => {
+    console.log(`\n🚀 ZapFlow Backend running on http://localhost:${PORT}`);
+    console.log(`📡 WebSocket ready`);
+    console.log(`🌐 Serving frontend from ${publicPath}\n`);
+  });
+}
 
 export default app;
+export { httpServer, io };

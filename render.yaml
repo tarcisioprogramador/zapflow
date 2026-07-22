@@ -21,8 +21,8 @@ services:
     repo: https://github.com/tarcisioprogramador/zapflow
     branch: master
     rootDir: backend
-    buildCommand: npm install && npx prisma generate
-    startCommand: npx tsx src/index.ts
+    buildCommand: npm install && npm run build && npx prisma generate
+    startCommand: node dist/index.js
     healthCheckPath: /api/health
     plan: free
     envVars:
@@ -37,7 +37,8 @@ services:
       - key: FRONTEND_URL
         value: https://frontend-poz0zs6m0-tarcisioconsultorsaude-9759s-projects.vercel.app
       - key: BACKEND_URL
-        sync: false
+        # Substitua pelo seu domínio Render após o deploy
+        value: "https://zapflow-backend.onrender.com"
       - key: RATE_LIMIT_MAX
         value: "200"
       - key: DATABASE_URL

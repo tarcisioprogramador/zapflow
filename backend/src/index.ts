@@ -165,8 +165,12 @@ function runMigrationsAndSeed(maxRetries = 3) {
   // Run prisma db push in background (non-blocking)
   exec('npx prisma db push --accept-data-loss 2>&1', (err, stdout) => {
     if (err) {
-      console.log('[DB] ⏳ Database not ready yet. Will retry in 30s...');
-      setTimeout(runMigrationsAndSeed, 30000);
+      if (maxRetries <= 0) {
+        console.log('[DB] ❌ Max retries reached. Database setup will continue in background.');
+        return;
+      }
+      console.log(`[DB] ⏳ Database not ready yet. Retries left: ${maxRetries}...`);
+      setTimeout(() => runMigrationsAndSeed(maxRetries - 1), 30000);
       return;
     }
     console.log('[DB] ✅ Migrations applied');

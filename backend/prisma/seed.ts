@@ -158,17 +158,21 @@ async function main() {
     },
   });
 
-  // Create tags (skip if they already exist)
-  await prisma.tag.createMany({
-    data: [
-      { name: 'Lead', color: '#6366f1' },
-      { name: 'Cliente', color: '#10b981' },
-      { name: 'VIP', color: '#f59e0b' },
-      { name: 'Urgente', color: '#ef4444' },
-      { name: 'Parceiro', color: '#8b5cf6' },
-    ],
-    skipDuplicates: true,
-  });
+  // Create tags (SQLite doesn't support skipDuplicates, so we use individual create + catch)
+  const tagData = [
+    { name: 'Lead', color: '#6366f1' },
+    { name: 'Cliente', color: '#10b981' },
+    { name: 'VIP', color: '#f59e0b' },
+    { name: 'Urgente', color: '#ef4444' },
+    { name: 'Parceiro', color: '#8b5cf6' },
+  ];
+  for (const tag of tagData) {
+    try {
+      await prisma.tag.create({ data: tag });
+    } catch {
+      // Tag already exists, skip
+    }
+  }
 
   // Create demo campaign
   await prisma.campaign.create({

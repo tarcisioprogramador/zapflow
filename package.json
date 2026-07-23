@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "postinstall": "cd backend && npm install && npx prisma generate",
-    "vercel-build": "cd backend && npm install && npx prisma generate && npm run build && cp -r src/generated dist/ && DATABASE_URL='file:./dev.db' npx prisma db push --accept-data-loss && DATABASE_URL='file:./dev.db' npx tsx prisma/seed.ts && cd ../frontend && npm install && npm run build && mkdir -p ../backend/public && cp -r dist/* ../backend/public/ || true"
+    "vercel-build": "cd backend && npm install && npx prisma generate && cd ../frontend && npm install && npm run build && mkdir -p ../backend/public && cp -r dist/* ../backend/public/ || true"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

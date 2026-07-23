@@ -9,9 +9,11 @@ export function useSocket() {
   useEffect(() => {
     if (!token) return;
 
-    // Always use window.location.origin for WebSocket (same-server deployment)
-    // VITE_API_URL is only for API proxy in local dev, not for WebSocket
-    const serverUrl = window.location.origin;
+    // In production, VITE_API_URL points to the backend (Render/Railway).
+    // The WebSocket connects to the same host derived from VITE_API_URL.
+    // In development, Vite's proxy handles WebSocket via vite.config.ts
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+    const serverUrl = apiUrl ? apiUrl.replace(/^http/, 'ws') : window.location.origin;
     const socket = io(serverUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],

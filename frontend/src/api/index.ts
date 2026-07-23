@@ -1,8 +1,12 @@
 import axios from 'axios';
 import { useAuthStore } from '../store';
 
+// In production, VITE_API_URL should point to the backend URL (e.g. Render/Railway)
+// In development, Vite's proxy handles this via vite.config.ts
+const API_URL = import.meta.env.VITE_API_URL || '/api';
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true, // Send cookies (httpOnly auth tokens) on every request
 });

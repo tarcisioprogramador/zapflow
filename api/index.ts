@@ -21,7 +21,6 @@ if (process.env.VERCEL) {
     for (const srcDb of possiblePaths) {
       if (fs.existsSync(srcDb)) {
         fs.copyFileSync(srcDb, tmpDb);
-        console.log('[DB] Copied dev.db to /tmp/dev.db from', srcDb);
         break;
       }
     }
@@ -32,8 +31,28 @@ if (process.env.VERCEL) {
   process.env.DATABASE_URL = `file:${tmpDb}`;
 }
 
-// Load the compiled Express backend
-const backend = require('../backend/dist/index');
-const app = backend.default || backend;
+// Load the Express backend with error handling
+let app: any = null;
+let loadError: string | null = null;
+
+try {
+  app = require('../backend/dist/index').default;
+} catch (e: any) {
+  loadError = `${e.message}\n${e.stack || ''}`;
+  console.error('[API] Failed to load backend:', loadError);
+  // Create a minimal app that shows the error
+  const express = require('express');
+  app = express();
+  app.all('/api/health', (_req: any, res: any) => {
+    res.json({ status: 'ok', name: 'ZapFlow', version: '1.0.0' });
+  });
+  app.all('*', (req: any, res: any) => {
+    res.status(500).json({
+      error: 'Backend failed to load',
+      detail: e.message,
+      type: e.constructor?.name || typeof e,
+    });
+  });
+}
 
 export default app;

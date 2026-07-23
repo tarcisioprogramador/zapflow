@@ -1,0 +1,58 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.bruteForceProtection = bruteForceProtection;
+exports.registerRateLimit = registerRateLimit;
+const rate_limit_1 = require("../services/rate-limit");
+/**
+ * Brute force protection middleware for login routes.
+ *
+ * - Tracks failed attempts by IP + email combination
+ * - Locks out after 5 failed attempts (15 min cooldown)
+ * - Clears on successful login
+ * - Prevents both credential stuffing and brute force
+ *
+ * Usage: Apply to POST /auth/login before the main handler.
+ * On failure, the route handler should call recordFailedAttempt() before returning error.
+ * On success, the route handler should call clearLoginAttempts().
+ */
+function bruteForceProtection(req, res, next) {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const email = req.body?.email;
+    if (!email) {
+        // No email in body — let the route handler return validation error
+        next();
+        return;
+    }
+    const result = (0, rate_limit_1.checkLoginAttempt)(ip, email);
+    if (!result.allowed) {
+        res.status(429).json({
+            error: `Muitas tentativas de login. Tente novamente em ${result.retryAfterSeconds} segundos.`,
+            retryAfterSeconds: result.retryAfterSeconds,
+            locked: true,
+        });
+        return;
+    }
+    // Attach remaining attempts to request for logging
+    req._loginRemaining = result.remaining;
+    next();
+}
+/**
+ * Rate limit middleware for registration (by IP).
+ *
+ * - Max 3 registrations per IP per hour
+ * - Prevents bulk account creation (spam / abuse)
+ */
+function registerRateLimit(req, res, next) {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const result = (0, rate_limit_1.checkRegisterAllowed)(ip);
+    if (!result.allowed) {
+        const hours = Math.ceil(result.retryAfterSeconds / 3600);
+        res.status(429).json({
+            error: `Limite de cadastros atingido para este IP. Tente novamente em ${hours} hora(s).`,
+            retryAfterSeconds: result.retryAfterSeconds,
+        });
+        return;
+    }
+    next();
+}
+//# sourceMappingURL=rate-limit.js.map

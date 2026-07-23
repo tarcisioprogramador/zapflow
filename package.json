@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "postinstall": "cd backend && npm install && npx prisma generate",
-    "vercel-build": "cd frontend && npm run build"
+    "vercel-build": "cd backend && npm install && npx prisma generate && cd ../frontend && npm install && npm run build"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

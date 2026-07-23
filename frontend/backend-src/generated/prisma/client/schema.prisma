@@ -1,0 +1,437 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth & Plans ───────────────────────────────────────
+
+model User {
+  id                      String  @id @default(uuid())
+  name                    String
+  email                   String  @unique
+  password                String
+  role                    String  @default("ATTENDANT")
+  plan                    String  @default("FREE")
+  avatar                  String?
+  phone                   String?
+  // Tour completion status (synced across devices)
+  tourDashboardCompleted  Boolean @default(false)
+  tourOnboardingCompleted Boolean @default(false)
+
+  // Trial system — 7-day free trial for new accounts
+  trialStartedAt DateTime?
+  trialExpiresAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  organizationId String?
+
+  conversations Conversation[]
+  contacts      Contact[]
+  campaigns     Campaign[]
+  flows         Flow[]
+
+  refreshTokens RefreshToken[]
+
+  @@index([trialExpiresAt])
+}
+
+// ─── Refresh Tokens (httpOnly cookie auth) ────────────────
+
+model RefreshToken {
+  id         String   @id @default(uuid())
+  token      String   @unique
+  userId     String
+  expiresAt  DateTime
+  revoked    Boolean  @default(false)
+  replacedBy String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model Organization {
+  id                   String    @id @default(uuid())
+  name                 String
+  plan                 String    @default("FREE")
+  logo                 String?
+  mpCustomerId         String?   @unique
+  mpSubscriptionId     String?
+  mpSubscriptionStatus String?   @default("incomplete")
+  mpCurrentPeriodEnd   DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  users              User[]
+  whatsappNumbers    WhatsAppNumber[]
+  crmBoards          CrmBoard[]
+  webhooks           Webhook[]
+  knowledgeBaseItems KnowledgeBaseItem[]
+  payments           Payment[]
+}
+
+// ─── WhatsApp Integration ───────────────────────────────
+
+model WhatsAppNumber {
+  id             String    @id @default(uuid())
+  number         String
+  name           String
+  status         String    @default("DISCONNECTED")
+  instanceId     String?
+  qrcode         String?
+  trialExpiresAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+
+  conversations Conversation[]
+
+  @@index([organizationId])
+  @@index([instanceId])
+  @@index([status])
+}
+
+// ─── Conversations & Messages ───────────────────────────
+
+model Conversation {
+  id        String   @id @default(uuid())
+  status    String   @default("open")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  whatsappNumber   WhatsAppNumber @relation(fields: [whatsappNumberId], references: [id])
+  whatsappNumberId String
+
+  contact   Contact? @relation(fields: [contactId], references: [id])
+  contactId String?
+
+  user   User?   @relation(fields: [userId], references: [id])
+  userId String?
+
+  messages Message[]
+  tags     ConversationTag[]
+
+  @@index([status])
+  @@index([whatsappNumberId])
+  @@index([contactId])
+  @@index([userId])
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  content   String
+  type      String   @default("TEXT")
+  from      String
+  to        String
+  status    String   @default("SENT")
+  mediaUrl  String?
+  isFromBot Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@index([isFromBot])
+}
+
+model Tag {
+  id    String @id @default(uuid())
+  name  String
+  color String @default("#6366f1")
+
+  conversations ConversationTag[]
+}
+
+model ConversationTag {
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String
+  tag            Tag          @relation(fields: [tagId], references: [id])
+  tagId          String
+
+  @@id([conversationId, tagId])
+}
+
+// ─── CRM / Kanban ───────────────────────────────────────
+
+model CrmBoard {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+
+  stages CrmStage[]
+  cards  CrmCard[]
+}
+
+model CrmStage {
+  id       String @id @default(uuid())
+  name     String
+  color    String @default("#6366f1")
+  position Int    @default(0)
+
+  board   CrmBoard @relation(fields: [boardId], references: [id])
+  boardId String
+
+  cards CrmCard[]
+}
+
+model CrmCard {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  value       Float?
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  board   CrmBoard @relation(fields: [boardId], references: [id])
+  boardId String
+
+  stage   CrmStage @relation(fields: [stageId], references: [id])
+  stageId String
+
+  contact   Contact? @relation(fields: [contactId], references: [id])
+  contactId String?
+}
+
+model Contact {
+  id          String   @id @default(uuid())
+  name        String
+  phone       String
+  email       String?
+  company     String?
+  tags        String   @default("[]")
+  notes       String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  adId        String?
+  adTitle     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user   User?   @relation(fields: [userId], references: [id])
+  userId String?
+
+  conversations Conversation[]
+  crmCards      CrmCard[]
+
+  @@index([userId])
+  @@index([phone])
+}
+
+// ─── Knowledge Base ──────────────────────────────────────
+
+model KnowledgeBaseItem {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  category  String   @default("Geral")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+}
+
+// ─── Flows (Visual Builder) ─────────────────────────────
+
+model Flow {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  isActive     Boolean  @default(false)
+  triggerType  String   @default("keyword")
+  triggerValue String?
+  nodes        String   @default("[]")
+  edges        String   @default("[]")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user   User?   @relation(fields: [userId], references: [id])
+  userId String?
+
+  executions FlowExecution[]
+
+  @@index([userId])
+  @@index([isActive])
+  @@index([triggerType])
+}
+
+model FlowExecution {
+  id        String    @id @default(uuid())
+  status    String    @default("running")
+  context   String    @default("{}")
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  flow   Flow   @relation(fields: [flowId], references: [id])
+  flowId String
+
+  @@index([flowId])
+  @@index([status])
+}
+
+// ─── Campaigns (Bulk Messages) ──────────────────────────
+
+model Campaign {
+  id          String    @id @default(uuid())
+  name        String
+  message     String
+  mediaUrl    String?
+  status      String    @default("DRAFT")
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  totalSent   Int       @default(0)
+  totalFailed Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user   User?   @relation(fields: [userId], references: [id])
+  userId String?
+
+  contacts CampaignContact[]
+}
+
+model CampaignContact {
+  id     String    @id @default(uuid())
+  phone  String
+  name   String?
+  status String    @default("pending")
+  sentAt DateTime?
+
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  campaignId String
+}
+
+// ─── Webhooks ───────────────────────────────────────────
+
+model Webhook {
+  id        String   @id @default(uuid())
+  name      String
+  url       String
+  events    String   @default("[]")
+  secret    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+}
+
+// ─── Payments / Transactions ───────────────────────────
+
+model Payment {
+  id                String    @id @default(uuid())
+  mpPaymentIntentId String?   @unique
+  mpInvoiceId       String?   @unique
+  mpSubscriptionId  String?
+  amount            Int // em centavos (R$ 97,00 = 9700)
+  originalAmount    Int? // valor original antes do desconto (cents)
+  discountAmount    Int? // valor do desconto aplicado (cents)
+  couponCode        String? // cupom usado, se houver
+  currency          String    @default("brl")
+  status            String    @default("pending") // pending, succeeded, failed, refunded
+  plan              String // STARTER, PRO, ENTERPRISE
+  description       String?
+  periodStart       DateTime?
+  periodEnd         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+
+  @@index([organizationId])
+  @@index([mpSubscriptionId])
+  @@index([createdAt])
+}
+
+// ─── Coupons / Discounts ───────────────────────────────
+
+model Coupon {
+  id             String    @id @default(uuid())
+  code           String    @unique
+  description    String?
+  discountType   String // "percentage" | "fixed"
+  discountValue  Float // ex: 20 para 20%, ou 5000 para R$50,00
+  minValue       Int? // valor mínimo do pedido (cents) para usar o cupom
+  maxUses        Int? // limite total de usos
+  currentUses    Int       @default(0)
+  maxUsesPerUser Int? // limite de usos por usuário
+  appliesToPlans String? // JSON array: ["STARTER","PRO","ENTERPRISE"] — null = todos
+  startsAt       DateTime?
+  expiresAt      DateTime?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+  @@index([expiresAt])
+}
+
+// ─── Webhook Event Log (idempotency + audit) ──────────
+
+model WebhookEvent {
+  id           String    @id @default(uuid())
+  source       String // "mercadopago" | "stripe"
+  eventId      String?   @unique // idempotency key (x-idempotency-key or MP data.id)
+  eventType    String // "payment" | "subscription_preapproval" | etc
+  dataId       String? // MP payment.id or preapproval.id
+  status       String // "received" | "processing" | "processed" | "failed"
+  requestBody  String? // JSON do payload recebido
+  responseBody String? // JSON do resultado do processamento
+  errorMessage String?
+  processedAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([eventId])
+  @@index([dataId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ─── Remarketing ────────────────────────────────────────
+
+model RemarketingSequence {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  isActive    Boolean  @default(false)
+  steps       String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  executions RemarketingExecution[]
+}
+
+model RemarketingExecution {
+  id        String   @id @default(uuid())
+  contactId String
+  stepIndex Int      @default(0)
+  status    String   @default("pending")
+  nextRun   DateTime
+  createdAt DateTime @default(now())
+
+  sequence   RemarketingSequence @relation(fields: [sequenceId], references: [id])
+  sequenceId String
+}

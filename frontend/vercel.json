@@ -3,15 +3,11 @@
   "installCommand": "npm install && cd backend-src && npm install && npx prisma generate",
   "buildCommand": "rm -rf dist && npm run build && npx esbuild backend-src/index.ts --bundle --platform=node --format=cjs --outfile=api/dist/server.cjs --log-level=warning",
   "outputDirectory": "dist",
-  "builds": [
-    {
-      "src": "api/index.js",
-      "use": "@vercel/node",
-      "config": {
-        "maxDuration": 30
-      }
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 30
     }
-  ],
+  },
   "routes": [
     {
       "src": "/api/(.*)",

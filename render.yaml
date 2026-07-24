@@ -6,10 +6,11 @@
 #   2. Clique "New +" -> "Blueprint"
 #   3. Conecte o repositório tarcisioprogramador/zapflow
 #   4. Clique "Apply"
+#
+# IMPORTANTE: Depois do deploy, adicione a env var DATABASE_URL:
+#   https://dashboard.render.com → zapflow-backend → Environment
+#   DATABASE_URL = file:/data/zapflow.db
 # ═══════════════════════════════════════════════
-
-# NOTA: O banco PostgreSQL está no Railway (já configurado)
-# A string DATABASE_URL é passada diretamente nas env vars
 
 services:
   - type: web
@@ -18,7 +19,7 @@ services:
     repo: https://github.com/tarcisioprogramador/zapflow
     branch: master
     rootDir: backend
-    buildCommand: npm install && npx prisma generate
+    buildCommand: npm install && npx prisma generate && npx prisma db push --accept-data-loss
     startCommand: npx tsx src/index.ts
     healthCheckPath: /api/health
     plan: free
@@ -30,7 +31,7 @@ services:
       - key: APP_NAME
         value: ZapFlow
       - key: JWT_SECRET
-        value: zapflow-jwt-secret-prod-2026
+        sync: false
       - key: FRONTEND_URL
         value: https://frontend-nu-sooty-330qu20cvq.vercel.app
       - key: BACKEND_URL
@@ -38,7 +39,6 @@ services:
       - key: RATE_LIMIT_MAX
         value: "200"
       - key: DATABASE_URL
-        # PostgreSQL do Railway (já configurado)
         sync: false
       - key: MP_ACCESS_TOKEN
         value: ""

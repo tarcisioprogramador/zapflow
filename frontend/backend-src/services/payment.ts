@@ -271,7 +271,7 @@ export async function createSubscription(params: {
         ...(params.couponCode ? { coupon: params.couponCode, originalAmount: amountInCents, discountAmount } : {}),
       }),
       status: 'pending',
-    },
+    } as any,
   });
 
   if (params.couponCode && discountAmount > 0) {

@@ -455,7 +455,7 @@ router.post('/coupons', async (req: AuthRequest, res: Response): Promise<void> =
     }
     const data = validate(createCouponSchema, req.body, res);
     if (!data) return;
-    const coupon = await createCoupon(data);
+    const coupon = await createCoupon(data as any);
     res.status(201).json(coupon);
   } catch (error) {
     res.status(400).json({ error: (error as Error).message || 'Erro ao criar cupom' });

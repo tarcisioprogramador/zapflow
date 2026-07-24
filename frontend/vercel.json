@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "installCommand": "npm install && cd backend-src && npm install && npx prisma generate",
-  "buildCommand": "rm -rf dist && npm run build && node ./node_modules/esbuild/bin/esbuild backend-src/index.ts --bundle --platform=node --format=cjs --outfile=api/dist/server.cjs --log-level=warning",
+  "installCommand": "npm install",
+  "buildCommand": "tsc -b && vite build",
   "outputDirectory": "dist",
   "functions": {
     "api/index.js": {

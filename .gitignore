@@ -7,7 +7,8 @@ node_modules/
 build/
 dist/
 .next/
-frontend/api/dist/
+!frontend/api/dist/
+frontend/api/dist/*.tmp**.tmp*
 frontend/backend-src/generated/
 frontend/backend-src/src/generated/
 frontend/node_modules/

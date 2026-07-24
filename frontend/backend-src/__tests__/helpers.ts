@@ -48,6 +48,7 @@ interface PrismaMock {
   conversationTag: PrismaDelegateMock;
   refreshToken: PrismaDelegateMock;
   payment: PrismaDelegateMock;
+  passwordResetToken: PrismaDelegateMock;
   $on: ReturnType<typeof vi.fn>;
   $connect: ReturnType<typeof vi.fn>;
   $disconnect: ReturnType<typeof vi.fn>;
@@ -95,6 +96,7 @@ export function createPrismaMock(): PrismaMock {
     conversationTag: createDelegateMock(),
     refreshToken: createDelegateMock(),
     payment: createDelegateMock(),
+    passwordResetToken: createDelegateMock(),
     $on: vi.fn(),
     $connect: vi.fn(),
     $disconnect: vi.fn(),

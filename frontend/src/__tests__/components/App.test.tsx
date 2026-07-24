@@ -21,10 +21,12 @@ describe('App Routing', () => {
     });
   });
 
-  it('should redirect to login when not authenticated', () => {
+  it('should redirect to landing when not authenticated', () => {
     setMockAuthState({ isAuthenticated: false });
     renderWithRouter('/');
-    expect(screen.getByText('Bem-vindo de volta')).toBeInTheDocument();
+    // Redirects to /landing (ProtectedRoute)
+    const zapflowElements = screen.getAllByText('ZapFlow');
+    expect(zapflowElements.length).toBeGreaterThan(0);
   });
 
   it('should render Layout and Outlet for authenticated users', () => {
@@ -54,10 +56,12 @@ describe('App Routing', () => {
     expect(zapflowElements.length).toBeGreaterThan(0);
   });
 
-  it('should redirect unknown routes to login when not authenticated', () => {
+  it('should redirect unknown routes to landing when not authenticated', () => {
     setMockAuthState({ isAuthenticated: false });
     renderWithRouter('/nonexistent');
-    expect(screen.getByText('Bem-vindo de volta')).toBeInTheDocument();
+    // Redirects to /landing (catch-all route)
+    const zapflowElements = screen.getAllByText('ZapFlow');
+    expect(zapflowElements.length).toBeGreaterThan(0);
   });
 
   it('should render sidebar nav items in protected layout', () => {

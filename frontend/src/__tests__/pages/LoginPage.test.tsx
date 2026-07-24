@@ -117,6 +117,7 @@ describe('LoginPage', () => {
     expect(mockLogin).toHaveBeenCalledWith({
       email: 'test@test.com',
       password: '123456',
+      rememberMe: false,
     });
   });
 
@@ -124,7 +125,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
     const mockLogin = authApi.login as ReturnType<typeof vi.fn>;
     mockLogin.mockRejectedValue({
-      response: { data: { error: 'Credenciais inválidas' } },
+      response: { data: { error: 'Credenciais invalidas' } },
     });
 
     renderLoginPage();
@@ -141,7 +142,7 @@ describe('LoginPage', () => {
 
   it('should render hero section with feature cards on desktop', () => {
     renderLoginPage();
-    expect(screen.getByText(/tudo que você precisa/i)).toBeInTheDocument();
+    expect(screen.getByText(/tudo que voce precisa/i)).toBeInTheDocument();
     expect(screen.getByText(/multi-whatsapp/i)).toBeInTheDocument();
     expect(screen.getByText(/ia atendente/i)).toBeInTheDocument();
     expect(screen.getByText(/fluxos visuais/i)).toBeInTheDocument();
@@ -150,11 +151,11 @@ describe('LoginPage', () => {
 
   it('should render auth badge', () => {
     renderLoginPage();
-    expect(screen.getByText(/automação com ia/i)).toBeInTheDocument();
+    expect(screen.getByText(/automacao com ia/i)).toBeInTheDocument();
   });
 
   it('should render testimonial quote', () => {
     renderLoginPage();
-    expect(screen.getByText(/aumentamos a conversão em 340%/i)).toBeInTheDocument();
+    expect(screen.getByText(/aumentamos a conversao em 340%/i)).toBeInTheDocument();
   });
 });

@@ -9,20 +9,32 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const setAuth = useAuthStore((s) => s.setAuth);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!email.trim() || !password) {
+      toast.error('Preencha email e senha');
+      return;
+    }
+
     setLoading(true);
     try {
-      const { data } = await authApi.login({ email, password });
+      const { data } = await authApi.login({ email: email.trim(), password, rememberMe });
       setAuth(data.user, data.token, data.refreshToken);
       toast.success('Bem-vindo de volta!');
       navigate('/');
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Erro ao fazer login');
+      const message = err.response?.data?.error;
+      if (err.response?.status === 429) {
+        toast.error('Muitas tentativas. Aguarde alguns minutos e tente novamente.', { duration: 6000 });
+      } else {
+        toast.error(message || 'Erro ao fazer login');
+      }
     } finally {
       setLoading(false);
     }
@@ -47,7 +59,7 @@ export default function LoginPage() {
             Bem-vindo de volta
           </h2>
           <p className="text-dark-400 mb-8">
-            Entre na sua conta para gerenciar suas automações
+            Entre na sua conta para gerenciar suas automacoes
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -63,6 +75,7 @@ export default function LoginPage() {
                 className="input-field w-full"
                 required
                 autoComplete="email"
+                disabled={loading}
               />
             </div>
             <div>
@@ -74,24 +87,47 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="********"
                   className="input-field w-full pr-12"
                   required
                   autoComplete="current-password"
+                  disabled={loading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-dark-500 hover:text-dark-300 transition-colors"
+                  tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
             </div>
+
+            {/* Remember me + Forgot password */}
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded border-dark-600 bg-dark-800 text-zap-500 focus:ring-zap-500 focus:ring-offset-0"
+                  disabled={loading}
+                />
+                <span className="text-sm text-dark-400">Lembrar de mim</span>
+              </label>
+              <Link
+                to="/forgot-password"
+                className="text-sm text-zap-400 hover:text-zap-300 font-medium transition-colors"
+              >
+                Esqueci minha senha
+              </Link>
+            </div>
+
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full flex items-center justify-center gap-2 py-3 text-base"
+              className="btn-primary w-full flex items-center justify-center gap-2 py-3 text-base disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -105,13 +141,11 @@ export default function LoginPage() {
           </form>
 
           <p className="text-center text-dark-400 text-sm mt-6">
-            Não tem conta?{' '}
+            Nao tem conta?{' '}
             <Link to="/register" className="text-zap-400 hover:text-zap-300 font-medium transition-colors">
               Criar gratuitamente
             </Link>
           </p>
-
-
         </div>
       </div>
 
@@ -120,17 +154,17 @@ export default function LoginPage() {
         <div className="max-w-lg animate-slide-in">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-zap-500/10 border border-zap-500/20 mb-6">
             <Zap className="w-4 h-4 text-zap-400" />
-            <span className="text-xs font-medium text-zap-400">Automação com IA</span>
+            <span className="text-xs font-medium text-zap-400">Automacao com IA</span>
           </div>
 
           <h3 className="text-2xl font-heading font-bold text-white mb-4">
-            Tudo que você precisa em{' '}
+            Tudo que voce precisa em{' '}
             <span className="text-zap-400">um lugar</span>
           </h3>
 
           <div className="grid grid-cols-2 gap-3 mb-8">
             {[
-              { icon: MessageSquare, label: 'Multi-WhatsApp', desc: 'Vários números' },
+              { icon: MessageSquare, label: 'Multi-WhatsApp', desc: 'Varios numeros' },
               { icon: Bot, label: 'IA Atendente', desc: '24 horas por dia' },
               { icon: GitBranch, label: 'Fluxos Visuais', desc: 'Drag & drop' },
               { icon: BarChart3, label: 'CRM + Analytics', desc: 'Pipeline completo' },
@@ -151,8 +185,8 @@ export default function LoginPage() {
           <div className="space-y-2 mb-6">
             {[
               'IA que atende, qualifica e vende 24/7',
-              'Construtor de fluxos sem programação',
-              'Campanhas em massa com texto, imagem e vídeo',
+              'Construtor de fluxos sem programacao',
+              'Campanhas em massa com texto, imagem e video',
               'Remarketing inteligente automatizado',
             ].map((item) => (
               <div key={item} className="flex items-center gap-3 text-sm text-dark-300">
@@ -164,10 +198,10 @@ export default function LoginPage() {
 
           <blockquote className="border-l-2 border-zap-500 pl-4">
             <p className="text-dark-400 italic text-sm leading-relaxed">
-              "Aumentamos a conversão em 340% depois que automatizamos o atendimento com ZapFlow."
+              "Aumentamos a conversao em 340% depois que automatizamos o atendimento com ZapFlow."
             </p>
             <cite className="text-xs text-dark-500 mt-2 block not-italic">
-              — Carlos Mendes, CEO da TechVendas
+              -- Carlos Mendes, CEO da TechVendas
             </cite>
           </blockquote>
         </div>

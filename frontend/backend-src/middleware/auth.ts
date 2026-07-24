@@ -31,8 +31,11 @@ export const AUTH_COOKIE_OPTIONS: CookieOptions = {
 /** Access token lives 15 minutes */
 const ACCESS_TOKEN_EXPIRY = '15m';
 
-/** Refresh token lives 7 days */
-const REFRESH_TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+/** Default refresh token lives 7 days */
+const REFRESH_TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Remember me refresh token lives 30 days */
+export const REMEMBER_ME_REFRESH_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000; // 7 days in ms
 
 // ─── Authentication ─────────────────────────────────────
 
@@ -106,12 +109,12 @@ export function generateToken(payload: AuthPayload): string {
 export async function generateRefreshToken(
   payload: AuthPayload,
   res: Response,
-  options?: { oldTokenId?: string }
+  options?: { oldTokenId?: string; rememberMe?: boolean }
 ): Promise<string> {
-  // Generate a cryptographically random token
   const cookieToken = crypto.randomBytes(40).toString('hex');
 
-  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS);
+  const expiryMs = options?.rememberMe ? REMEMBER_ME_REFRESH_EXPIRY_MS : REFRESH_TOKEN_EXPIRY_MS;
+  const expiresAt = new Date(Date.now() + expiryMs);
 
   // Revoke old refresh token (rotation)
   if (options?.oldTokenId) {
@@ -133,7 +136,7 @@ export async function generateRefreshToken(
   // Set httpOnly cookie (may be stripped by Railway proxy, but kept for local dev)
   res.cookie(REFRESH_TOKEN_COOKIE, cookieToken, {
     ...AUTH_COOKIE_OPTIONS,
-    maxAge: REFRESH_TOKEN_EXPIRY_MS,
+    maxAge: expiryMs,
   });
 
   return cookieToken;

@@ -1,9 +1,24 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store';
 import { authApi, paymentsApi } from '../api';
 import { Zap, Eye, EyeOff, ArrowRight, Bot, MessageSquare, GitBranch, BarChart3, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+function getPasswordStrength(password: string): { score: number; label: string; color: string } {
+  if (!password) return { score: 0, label: '', color: '' };
+  let score = 0;
+  if (password.length >= 6) score++;
+  if (password.length >= 8) score++;
+  if (/[A-Z]/.test(password)) score++;
+  if (/[0-9]/.test(password)) score++;
+  if (/[^A-Za-z0-9]/.test(password)) score++;
+
+  if (score <= 1) return { score, label: 'Fraca', color: 'bg-red-500' };
+  if (score <= 2) return { score, label: 'Media', color: 'bg-yellow-500' };
+  if (score <= 3) return { score, label: 'Boa', color: 'bg-blue-500' };
+  return { score, label: 'Forte', color: 'bg-green-500' };
+}
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ name: '', email: '', password: '', organizationName: '' });
@@ -14,14 +29,36 @@ export default function RegisterPage() {
   const [searchParams] = useSearchParams();
   const selectedPlan = searchParams.get('plan');
 
+  const strength = useMemo(() => getPasswordStrength(form.password), [form.password]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!form.name.trim() || !form.email.trim() || !form.password) {
+      toast.error('Preencha todos os campos obrigatorios');
+      return;
+    }
+
+    if (form.name.trim().length < 2) {
+      toast.error('Nome deve ter no minimo 2 caracteres');
+      return;
+    }
+
+    if (form.password.length < 6) {
+      toast.error('Senha deve ter no minimo 6 caracteres');
+      return;
+    }
+
     setLoading(true);
     try {
-      const { data } = await authApi.register(form);
+      const { data } = await authApi.register({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        password: form.password,
+        organizationName: form.organizationName.trim() || undefined,
+      });
       setAuth(data.user, data.token, data.refreshToken);
 
-      // If user came from a plan CTA, redirect straight to Mercado Pago checkout
       if (selectedPlan && ['STARTER', 'PRO', 'ENTERPRISE'].includes(selectedPlan.toUpperCase())) {
         try {
           const checkout = await paymentsApi.createCheckout({ plan: selectedPlan.toUpperCase() });
@@ -30,7 +67,7 @@ export default function RegisterPage() {
             return;
           }
         } catch {
-          // Fallback: if checkout fails, go to onboarding
+          // Fallback: go to onboarding
         }
       }
 
@@ -78,6 +115,7 @@ export default function RegisterPage() {
                 className="input-field w-full"
                 required
                 autoComplete="name"
+                disabled={loading}
               />
             </div>
             <div>
@@ -92,6 +130,7 @@ export default function RegisterPage() {
                 className="input-field w-full"
                 required
                 autoComplete="email"
+                disabled={loading}
               />
             </div>
             <div>
@@ -105,6 +144,7 @@ export default function RegisterPage() {
                 placeholder="Sua empresa (opcional)"
                 className="input-field w-full"
                 autoComplete="organization"
+                disabled={loading}
               />
             </div>
             <div>
@@ -116,25 +156,50 @@ export default function RegisterPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="Minimo 6 caracteres"
                   className="input-field w-full pr-12"
                   required
                   minLength={6}
                   autoComplete="new-password"
+                  disabled={loading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-dark-500 hover:text-dark-300 transition-colors"
+                  tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
+              {/* Password strength indicator */}
+              {form.password && (
+                <div className="mt-2">
+                  <div className="flex gap-1 mb-1">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div
+                        key={i}
+                        className={`h-1 flex-1 rounded-full transition-all ${
+                          i <= strength.score ? strength.color : 'bg-dark-700'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <p className={`text-xs ${
+                    strength.score <= 1 ? 'text-red-400' :
+                    strength.score <= 2 ? 'text-yellow-400' :
+                    strength.score <= 3 ? 'text-blue-400' :
+                    'text-green-400'
+                  }`}>
+                    {strength.label}
+                  </p>
+                </div>
+              )}
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full flex items-center justify-center gap-2 py-3 text-base"
+              className="btn-primary w-full flex items-center justify-center gap-2 py-3 text-base disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -148,7 +213,7 @@ export default function RegisterPage() {
           </form>
 
           <p className="text-center text-dark-400 text-sm mt-6">
-            Já tem conta?{' '}
+            Ja tem conta?{' '}
             <Link to="/login" className="text-zap-400 hover:text-zap-300 font-medium transition-colors">
               Fazer login
             </Link>
@@ -156,10 +221,10 @@ export default function RegisterPage() {
 
           {/* Benefits */}
           <div className="mt-8 p-4 glass-card">
-            <p className="text-xs font-medium text-zap-400 mb-3">🎉 Ao criar sua conta você ganha:</p>
+            <p className="text-xs font-medium text-zap-400 mb-3">Ao criar sua conta voce ganha:</p>
             <div className="space-y-2">
               {[
-                '7 dias de teste grátis',
+                '7 dias de teste gratis',
                 'Setup em menos de 5 minutos',
                 'Suporte via chat ao vivo',
                 'Cancele quando quiser, sem multa',
@@ -179,7 +244,7 @@ export default function RegisterPage() {
         <div className="max-w-lg animate-slide-in">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-zap-500/10 border border-zap-500/20 mb-6">
             <Zap className="w-4 h-4 text-zap-400" />
-            <span className="text-xs font-medium text-zap-400">Nunca foi tão fácil</span>
+            <span className="text-xs font-medium text-zap-400">Nunca foi tao facil</span>
           </div>
 
           <h3 className="text-2xl font-heading font-bold text-white mb-4">
@@ -188,16 +253,16 @@ export default function RegisterPage() {
           </h3>
 
           <p className="text-sm text-dark-400 mb-8 leading-relaxed">
-            Conecte seu WhatsApp, configure sua IA e comece a vender 24 horas por dia. 
-            Sem precisar de programação ou conhecimentos técnicos.
+            Conecte seu WhatsApp, configure sua IA e comece a vender 24 horas por dia.
+            Sem precisar de programacao ou conhecimentos tecnicos.
           </p>
 
           <div className="grid grid-cols-2 gap-3 mb-8">
             {[
-              { icon: MessageSquare, label: 'WhatsApp', desc: 'Multi-número' },
-              { icon: Bot, label: 'IA Megan', desc: 'Vende por você' },
+              { icon: MessageSquare, label: 'WhatsApp', desc: 'Multi-numero' },
+              { icon: Bot, label: 'IA Megan', desc: 'Vende por voce' },
               { icon: GitBranch, label: 'Fluxos', desc: 'Arrastar e soltar' },
-              { icon: BarChart3, label: 'Dashboard', desc: 'Métricas reais' },
+              { icon: BarChart3, label: 'Dashboard', desc: 'Metricas reais' },
             ].map((feature) => (
               <div
                 key={feature.label}
@@ -214,10 +279,10 @@ export default function RegisterPage() {
 
           <div className="space-y-2">
             {[
-              'IA treinada que entende do seu negócio',
-              'CRM Kanban com pipeline automático',
-              'Disparos em massa com texto, áudio e vídeo',
-              'Remarketing inteligente sem programação',
+              'IA treinada que entende do seu negocio',
+              'CRM Kanban com pipeline automatico',
+              'Disparos em massa com texto, audio e video',
+              'Remarketing inteligente sem programacao',
             ].map((item) => (
               <div key={item} className="flex items-center gap-3 text-sm text-dark-300">
                 <Check className="w-4 h-4 text-zap-400 flex-shrink-0" />

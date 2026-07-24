@@ -102,7 +102,8 @@ api.interceptors.response.use(
 
 // ─── Auth ─────────────────────────────────────────────────
 export const authApi = {
-  login: (data: { email: string; password: string }) => api.post('/auth/login', data),
+  login: (data: { email: string; password: string; rememberMe?: boolean }) =>
+    api.post('/auth/login', data),
   register: (data: { name: string; email: string; password: string; organizationName?: string; paymentId?: string }) =>
     api.post('/auth/register', data),
   me: () => api.get('/auth/me'),
@@ -110,6 +111,8 @@ export const authApi = {
   logout: () => api.post('/auth/logout'),
   updateProfile: (data: any) => api.put('/auth/profile', data),
   trial: () => api.get('/auth/trial'),
+  forgotPassword: (email: string) => api.post('/auth/forgot-password', { email }),
+  resetPassword: (token: string, password: string) => api.post('/auth/reset-password', { token, password }),
 };
 
 // WhatsApp

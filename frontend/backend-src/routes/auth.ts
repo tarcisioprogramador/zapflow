@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import prisma from '../config/database';
 import {
   authenticate,
@@ -8,6 +9,7 @@ import {
   validateRefreshToken,
   setAccessTokenCookie,
   clearAuthCookies,
+  REMEMBER_ME_REFRESH_EXPIRY_MS,
 } from '../middleware/auth';
 import { linkPaymentToUser } from '../services/payment';
 import {
@@ -23,6 +25,26 @@ import { AuthRequest, AuthPayload, UserRole } from '../types';
 import { startUserTrial, getUserTrialStatus } from '../services/trial';
 
 const router = Router();
+
+const MIN_PASSWORD_LENGTH = 6;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+
+// ─── Validators ────────────────────────────────────────
+function validateEmail(email: string): boolean {
+  return typeof email === 'string' && EMAIL_REGEX.test(email) && email.length <= 254;
+}
+
+function validatePassword(password: string): { valid: boolean; error?: string } {
+  if (typeof password !== 'string') return { valid: false, error: 'Senha invalida' };
+  if (password.length < MIN_PASSWORD_LENGTH) return { valid: false, error: `Senha deve ter no minimo ${MIN_PASSWORD_LENGTH} caracteres` };
+  if (password.length > 128) return { valid: false, error: 'Senha muito longa' };
+  return { valid: true };
+}
+
+function validateName(name: string): boolean {
+  return typeof name === 'string' && name.trim().length >= 2 && name.length <= 100;
+}
 
 // ─── Helper: build user response (no password) ──────────
 function buildUserResponse(user: any) {
@@ -41,7 +63,7 @@ function buildUserResponse(user: any) {
 }
 
 // ─── Helper: set auth cookies and return tokens ──
-async function setAuthCookies(user: any, res: Response) {
+async function setAuthCookies(user: any, res: Response, rememberMe = false) {
   const payload: AuthPayload = {
     userId: user.id,
     email: user.email,
@@ -49,13 +71,13 @@ async function setAuthCookies(user: any, res: Response) {
   };
 
   const accessToken = generateToken(payload);
-  const refreshToken = await generateRefreshToken(payload, res);
+  const refreshToken = await generateRefreshToken(payload, res, { rememberMe });
   setAccessTokenCookie(res, accessToken);
 
   return { accessToken, refreshToken };
 }
 
-// POST /api/auth/register — with IP-based rate limit
+// ─── POST /api/auth/register ────────────────────────────
 router.post('/register', registerRateLimit, async (req: AuthRequest, res: Response): Promise<void> => {
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
 
@@ -63,43 +85,58 @@ router.post('/register', registerRateLimit, async (req: AuthRequest, res: Respon
     const { name, email, password, organizationName, paymentId } = req.body;
 
     if (!name || !email || !password) {
-      res.status(400).json({ error: 'Nome, email e senha são obrigatórios' });
+      res.status(400).json({ error: 'Nome, email e senha sao obrigatorios' });
       return;
     }
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    if (!validateName(name)) {
+      res.status(400).json({ error: 'Nome invalido (2-100 caracteres)' });
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      res.status(400).json({ error: 'Email invalido' });
+      return;
+    }
+
+    const passwordCheck = validatePassword(password);
+    if (!passwordCheck.valid) {
+      res.status(400).json({ error: passwordCheck.error });
+      return;
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
-      res.status(409).json({ error: 'Email já cadastrado' });
+      res.status(409).json({ error: 'Email ja cadastrado' });
       return;
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create organization (always create an org for every user)
     const org = await prisma.organization.create({
       data: { name: organizationName || `${name}'s Organization` },
     });
-    const organizationId = org.id;
 
     const user = await prisma.user.create({
       data: {
-        name,
-        email,
+        name: name.trim(),
+        email: normalizedEmail,
         password: hashedPassword,
         role: 'OWNER',
         plan: 'FREE',
-        organizationId,
+        organizationId: org.id,
       },
     });
 
-    // If paymentId was provided, try to link a public checkout payment
     let linkedPlan: string | undefined;
     if (paymentId) {
       const linkResult = await linkPaymentToUser({
         paymentId,
-        organizationId,
+        organizationId: org.id,
         userId: user.id,
-        userEmail: email,
+        userEmail: normalizedEmail,
       });
 
       if (linkResult?.linked) {
@@ -108,27 +145,22 @@ router.post('/register', registerRateLimit, async (req: AuthRequest, res: Respon
       }
     }
 
-    // Start 7-day free trial for new users (only if no payment was linked)
     if (!paymentId) {
       await startUserTrial(user.id);
     }
 
-    // Record successful registration for rate limiting
     recordRegisterAttempt(ip);
 
-    // Re-fetch user to get updated plan (from payment linking) and organization relation
     const freshUser = await prisma.user.findUnique({
       where: { id: user.id },
       include: { organization: true },
     });
 
     if (!freshUser) {
-      // Should never happen, but handle gracefully
       res.status(500).json({ error: 'Erro ao criar conta' });
       return;
     }
 
-    // Set httpOnly cookies + return tokens in body (for Railway proxy that strips cookies)
     const { accessToken, refreshToken } = await setAuthCookies(freshUser, res);
 
     res.status(201).json({
@@ -137,56 +169,55 @@ router.post('/register', registerRateLimit, async (req: AuthRequest, res: Respon
       user: buildUserResponse(freshUser),
     });
   } catch (error) {
-    console.error('Register error:', error);
+    console.error('[Auth] Register error:', error);
     res.status(500).json({ error: 'Erro ao criar conta' });
   }
 });
 
-// POST /api/auth/login — with brute force protection
+// ─── POST /api/auth/login ──────────────────────────────
 router.post('/login', bruteForceProtection, async (req: AuthRequest, res: Response): Promise<void> => {
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
-  const { email, password } = req.body;
+  const { email, password, rememberMe } = req.body;
 
   if (!email || !password) {
-    res.status(400).json({ error: 'Email e senha são obrigatórios' });
+    res.status(400).json({ error: 'Email e senha sao obrigatorios' });
+    return;
+  }
+
+  if (!validateEmail(email)) {
+    res.status(400).json({ error: 'Email invalido' });
     return;
   }
 
   try {
+    const normalizedEmail = email.toLowerCase().trim();
+
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
       include: { organization: true },
     });
 
-    // Use same error message for non-existent user and wrong password
-    // This prevents user enumeration via timing/oracle attacks
-    const fakeHash = '$2a$12$00000000000000000000000000000000000000000000000'; // 60 chars
+    const fakeHash = '$2a$12$00000000000000000000000000000000000000000000000';
 
     if (!user) {
-      // Record failed attempt even for non-existent emails to prevent enumeration
-      recordFailedAttempt(ip, email);
-      // Simulate bcrypt work factor to prevent timing-based user enumeration
-      try {
-        await bcrypt.compare(password, fakeHash);
-      } catch {
-        // Ignore bcrypt errors on fake hash — we just need the delay
-      }
-      res.status(401).json({ error: 'Credenciais inválidas' });
+      recordFailedAttempt(ip, normalizedEmail);
+      try { await bcrypt.compare(password, fakeHash); } catch { /* timing decoy */ }
+      res.status(401).json({ error: 'Credenciais invalidas' });
       return;
     }
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
-      recordFailedAttempt(ip, email);
-      res.status(401).json({ error: 'Credenciais inválidas' });
+      recordFailedAttempt(ip, normalizedEmail);
+      res.status(401).json({ error: 'Credenciais invalidas' });
       return;
     }
 
-    // Successful login — clear failed attempts
-    clearLoginAttempts(ip, email);
+    clearLoginAttempts(ip, normalizedEmail);
 
-    // Set httpOnly cookies + return tokens in body (for Railway proxy that strips cookies)
-    const { accessToken, refreshToken } = await setAuthCookies(user, res);
+    const { accessToken, refreshToken } = await setAuthCookies(user, res, !!rememberMe);
+
+    console.log(`[Auth] Login successful: ${normalizedEmail} from ${ip}`);
 
     res.json({
       token: accessToken,
@@ -194,26 +225,121 @@ router.post('/login', bruteForceProtection, async (req: AuthRequest, res: Respon
       user: buildUserResponse(user),
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('[Auth] Login error:', error);
     res.status(500).json({ error: 'Erro ao fazer login' });
   }
 });
 
-// POST /api/auth/refresh — Refresh access token
-// Tries httpOnly cookie first, then falls back to request body (for Railway proxy that strips cookies)
+// ─── POST /api/auth/forgot-password ────────────────────
+router.post('/forgot-password', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    if (!email || !validateEmail(email)) {
+      res.status(400).json({ error: 'Email invalido' });
+      return;
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+
+    // Always return success to prevent email enumeration
+    if (!user) {
+      res.json({ message: 'Se o email estiver cadastrado, voce recebera um link de redefinicao.' });
+      return;
+    }
+
+    // Generate secure reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_EXPIRY_MS);
+
+    // Store hashed token (never store raw token in DB)
+    await prisma.passwordResetToken.create({
+      data: {
+        token: resetTokenHash,
+        userId: user.id,
+        expiresAt,
+      },
+    });
+
+    // In production, send email here. For now, log the reset link.
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
+    console.log(`[Auth] Password reset for ${normalizedEmail}: ${resetUrl}`);
+
+    res.json({ message: 'Se o email estiver cadastrado, voce recebera um link de redefinicao.' });
+  } catch (error) {
+    console.error('[Auth] Forgot password error:', error);
+    res.json({ message: 'Se o email estiver cadastrado, voce recebera um link de redefinicao.' });
+  }
+});
+
+// ─── POST /api/auth/reset-password ─────────────────────
+router.post('/reset-password', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      res.status(400).json({ error: 'Token e nova senha sao obrigatorios' });
+      return;
+    }
+
+    const passwordCheck = validatePassword(password);
+    if (!passwordCheck.valid) {
+      res.status(400).json({ error: passwordCheck.error });
+      return;
+    }
+
+    const resetTokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const record = await prisma.passwordResetToken.findUnique({
+      where: { token: resetTokenHash },
+    });
+
+    if (!record || record.used || record.expiresAt < new Date()) {
+      res.status(400).json({ error: 'Token invalido ou expirado' });
+      return;
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    await prisma.user.update({
+      where: { id: record.userId },
+      data: { password: hashedPassword },
+    });
+
+    await prisma.passwordResetToken.update({
+      where: { id: record.id },
+      data: { used: true },
+    });
+
+    // Revoke all existing refresh tokens for this user (force re-login everywhere)
+    await prisma.refreshToken.updateMany({
+      where: { userId: record.userId, revoked: false },
+      data: { revoked: true },
+    });
+
+    console.log(`[Auth] Password reset completed for user ${record.userId}`);
+
+    res.json({ message: 'Senha redefinida com sucesso. Faca login com sua nova senha.' });
+  } catch (error) {
+    console.error('[Auth] Reset password error:', error);
+    res.status(500).json({ error: 'Erro ao redefinir senha' });
+  }
+});
+
+// ─── POST /api/auth/refresh ────────────────────────────
 router.post('/refresh', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    // Try cookie first (local dev), fallback to body (production/Railway)
     const refreshTokenStr = req.cookies?.zapflow_refresh_token || req.body?.refreshToken;
     const { valid, userId, tokenRecord } = await validateRefreshToken(refreshTokenStr);
 
     if (!valid || !userId) {
       clearAuthCookies(res);
-      res.status(401).json({ error: 'Sessão expirada. Faça login novamente.' });
+      res.status(401).json({ error: 'Sessao expirada. Faca login novamente.' });
       return;
     }
 
-    // Fetch fresh user data for the new token
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { organization: true },
@@ -221,11 +347,10 @@ router.post('/refresh', async (req: AuthRequest, res: Response): Promise<void> =
 
     if (!user) {
       clearAuthCookies(res);
-      res.status(401).json({ error: 'Usuário não encontrado' });
+      res.status(401).json({ error: 'Usuario nao encontrado' });
       return;
     }
 
-    // Issue new tokens (rotate refresh token)
     const newPayload: AuthPayload = {
       userId: user.id,
       email: user.email,
@@ -245,20 +370,18 @@ router.post('/refresh', async (req: AuthRequest, res: Response): Promise<void> =
       user: buildUserResponse(user),
     });
   } catch (error) {
-    console.error('Refresh error:', error);
+    console.error('[Auth] Refresh error:', error);
     clearAuthCookies(res);
-    res.status(500).json({ error: 'Erro ao renovar sessão' });
+    res.status(500).json({ error: 'Erro ao renovar sessao' });
   }
 });
 
-// POST /api/auth/logout — Clear cookies and revoke refresh token
+// ─── POST /api/auth/logout ─────────────────────────────
 router.post('/logout', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    // Try cookie first, fallback to request body
     const refreshTokenStr = req.cookies?.zapflow_refresh_token || req.body?.refreshToken;
 
     if (refreshTokenStr) {
-      // Revoke the refresh token in database
       await prisma.refreshToken.updateMany({
         where: { token: refreshTokenStr, revoked: false },
         data: { revoked: true },
@@ -266,15 +389,15 @@ router.post('/logout', async (req: AuthRequest, res: Response): Promise<void> =>
     }
 
     clearAuthCookies(res);
-    res.json({ message: 'Sessão encerrada' });
+    res.json({ message: 'Sessao encerrada' });
   } catch (error) {
-    console.error('Logout error:', error);
+    console.error('[Auth] Logout error:', error);
     clearAuthCookies(res);
-    res.json({ message: 'Sessão encerrada' });
+    res.json({ message: 'Sessao encerrada' });
   }
 });
 
-// GET /api/auth/me — uses authenticate middleware for token verification
+// ─── GET /api/auth/me ──────────────────────────────────
 router.get('/me', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const user = await prisma.user.findUnique({
@@ -283,17 +406,17 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response): Promise
     });
 
     if (!user) {
-      res.status(404).json({ error: 'Usuário não encontrado' });
+      res.status(404).json({ error: 'Usuario nao encontrado' });
       return;
     }
 
     res.json(buildUserResponse(user));
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar usuário' });
+    res.status(500).json({ error: 'Erro ao buscar usuario' });
   }
 });
 
-// GET /api/auth/trial — status do trial
+// ─── GET /api/auth/trial ───────────────────────────────
 router.get('/trial', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const status = await getUserTrialStatus(req.user!.userId);
@@ -303,7 +426,7 @@ router.get('/trial', authenticate, async (req: AuthRequest, res: Response): Prom
   }
 });
 
-// PUT /api/auth/profile
+// ─── PUT /api/auth/profile ─────────────────────────────
 router.put('/profile', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { name, avatar, phone } = req.body;
@@ -326,7 +449,7 @@ router.put('/profile', authenticate, async (req: AuthRequest, res: Response): Pr
   }
 });
 
-// GET /api/auth/tour-status - Get tour completion status
+// ─── GET /api/auth/tour-status ─────────────────────────
 router.get('/tour-status', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const user = await prisma.user.findUnique({
@@ -335,7 +458,7 @@ router.get('/tour-status', authenticate, async (req: AuthRequest, res: Response)
     });
 
     if (!user) {
-      res.status(404).json({ error: 'Usuário não encontrado' });
+      res.status(404).json({ error: 'Usuario nao encontrado' });
       return;
     }
 
@@ -349,7 +472,7 @@ router.get('/tour-status', authenticate, async (req: AuthRequest, res: Response)
   }
 });
 
-// PUT /api/auth/tour-status - Update tour completion status
+// ─── PUT /api/auth/tour-status ─────────────────────────
 router.put('/tour-status', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { dashboard, onboarding } = req.body;
